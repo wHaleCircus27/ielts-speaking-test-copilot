@@ -1,0 +1,149 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root,
+.theme-claude {
+  --color-bg: 246 242 234;
+  --color-surface: 255 252 246;
+  --color-elevated: 238 231 220;
+  --color-border: 217 207 193;
+  --color-text: 43 39 33;
+  --color-muted: 111 103 93;
+  --color-primary: 139 94 60;
+  --color-primary-strong: 111 67 38;
+  --color-accent: 45 111 115;
+  --color-danger: 180 66 66;
+  --radius-app: 8px;
+  --shadow-app: 0 10px 24px rgb(43 39 33 / 0.06);
+}
+
+.theme-animal {
+  --color-bg: 229 243 220;
+  --color-surface: 255 253 246;
+  --color-elevated: 245 239 225;
+  --color-border: 205 193 171;
+  --color-text: 66 47 36;
+  --color-muted: 128 116 98;
+  --color-primary: 117 181 64;
+  --color-primary-strong: 82 137 40;
+  --color-accent: 246 197 54;
+  --color-danger: 221 91 73;
+  --radius-app: 18px;
+  --shadow-app: 0 4px 0 rgb(190 177 153), 0 16px 34px rgb(77 91 54 / 0.12);
+}
+
+.theme-glass {
+  --color-bg: 0 0 0;
+  --color-surface: 24 24 27;
+  --color-elevated: 38 38 41;
+  --color-border: 54 54 60;
+  --color-text: 244 244 245;
+  --color-muted: 160 160 168;
+  --color-primary: 14 139 255;
+  --color-primary-strong: 0 104 220;
+  --color-accent: 34 197 94;
+  --color-danger: 255 75 72;
+  --radius-app: 18px;
+  --shadow-app: 0 18px 46px rgb(0 0 0 / 0.38);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: rgb(var(--color-bg));
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.theme-glass body {
+  background:
+    radial-gradient(circle at 30% -20%, rgb(40 121 255 / 0.22), transparent 32%),
+    linear-gradient(180deg, rgb(11 11 13), rgb(0 0 0));
+}
+
+.theme-glass #root > div {
+  background:
+    radial-gradient(circle at 20% 0%, rgb(22 96 190 / 0.12), transparent 28%),
+    linear-gradient(180deg, rgb(10 10 12), rgb(0 0 0));
+}
+
+.theme-glass .glass-panel {
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: rgb(255 255 255 / 0.055);
+  box-shadow: 0 22px 70px rgb(0 0 0 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.05);
+  backdrop-filter: blur(18px);
+}
+
+.theme-glass .glass-soft {
+  border: 1px solid rgb(255 255 255 / 0.09);
+  background: rgb(255 255 255 / 0.045);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
+}
+
+.theme-glass .glass-blue-glow {
+  box-shadow: 0 0 0 1px rgb(var(--color-primary) / 0.55), 0 18px 40px rgb(var(--color-primary) / 0.12);
+}
+
+.theme-glass .glass-scrollbar {
+  scrollbar-color: rgb(244 244 245 / 0.85) transparent;
+}
+
+.theme-glass .glass-scrollbar::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.theme-glass .glass-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgb(244 244 245 / 0.85);
+}
+
+.theme-glass .glass-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.theme-animal #root > div {
+  background:
+    radial-gradient(circle, rgb(137 190 109 / 0.22) 0 3px, transparent 3.5px) 0 0 / 28px 28px,
+    rgb(var(--color-bg));
+}
+
+.theme-animal .island-panel {
+  border-width: 3px;
+  border-color: rgb(var(--color-border));
+  box-shadow: var(--shadow-app);
+}
+
+.theme-animal .island-primary-button {
+  border-bottom: 4px solid rgb(var(--color-primary-strong));
+  box-shadow: 0 3px 0 rgb(62 105 31 / 0.65);
+}
+
+.theme-animal .island-score-selected {
+  border-color: rgb(213 156 29);
+  background: rgb(var(--color-accent));
+  color: rgb(92 53 20);
+  box-shadow: inset 0 -3px 0 rgb(217 156 26 / 0.75);
+}
+
+.theme-animal .island-badge {
+  border-color: rgb(221 174 52);
+  background: rgb(255 218 63);
+  color: rgb(94 55 19);
+}
