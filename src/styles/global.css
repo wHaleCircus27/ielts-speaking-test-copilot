@@ -64,6 +64,352 @@ body {
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+.typography-font-system {
+  --app-font-family: Inter, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei",
+    "Noto Sans CJK SC", "Source Han Sans SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  font-family:
+    Inter, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC",
+    "Source Han Sans SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.typography-font-serif {
+  --app-font-family: Georgia, "Iowan Old Style", "Songti SC", STSong, "Noto Serif CJK SC", "Source Han Serif SC",
+    "SimSun", "Times New Roman", serif;
+  font-family:
+    Georgia, "Iowan Old Style", "Songti SC", STSong, "Noto Serif CJK SC", "Source Han Serif SC", "SimSun",
+    "Times New Roman", serif;
+}
+
+.typography-font-space {
+  --app-font-family: "Space Grotesk", "Avenir Next", Inter, "Heiti SC", STHeiti, "PingFang SC",
+    "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, sans-serif;
+  font-family:
+    "Space Grotesk", "Avenir Next", Inter, "Heiti SC", STHeiti, "PingFang SC", "Microsoft YaHei UI",
+    "Microsoft YaHei", "Noto Sans CJK SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.typography-font-mono {
+  --app-font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Kaiti SC", STKaiti, KaiTi,
+    "Noto Serif CJK SC", "Liberation Mono", Menlo, monospace;
+  font-family:
+    "JetBrains Mono", "SFMono-Regular", Consolas, "Kaiti SC", STKaiti, KaiTi, "Noto Serif CJK SC",
+    "Liberation Mono", Menlo, monospace;
+}
+
+.typography-font-system,
+.typography-font-serif,
+.typography-font-space,
+.typography-font-mono,
+.typography-font-system :where(*:not(svg):not(path)),
+.typography-font-serif :where(*:not(svg):not(path)),
+.typography-font-space :where(*:not(svg):not(path)),
+.typography-font-mono :where(*:not(svg):not(path)) {
+  font-family: var(--app-font-family) !important;
+}
+
+.settings-preview-caption,
+.settings-preview-text-system {
+  font-family:
+    Inter, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC",
+    "Source Han Sans SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.settings-preview-text-serif {
+  font-family:
+    Georgia, "Iowan Old Style", "Songti SC", STSong, "Noto Serif CJK SC", "Source Han Serif SC", "SimSun",
+    "Times New Roman", serif;
+}
+
+.settings-preview-text-space {
+  font-family:
+    "Space Grotesk", "Avenir Next", Inter, "Heiti SC", STHeiti, "PingFang SC", "Microsoft YaHei UI",
+    "Microsoft YaHei", "Noto Sans CJK SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.settings-preview-text-mono {
+  font-family:
+    "JetBrains Mono", "SFMono-Regular", Consolas, "Kaiti SC", STKaiti, KaiTi, "Noto Serif CJK SC",
+    "Liberation Mono", Menlo, monospace;
+}
+
+.typography-size-small {
+  --app-font-scale: 0.88;
+  font-size: 13px;
+}
+
+.typography-size-medium {
+  --app-font-scale: 1;
+  font-size: 15px;
+}
+
+.typography-size-large {
+  --app-font-scale: 1.36;
+  font-size: 20px;
+}
+
+.typography-size-small :where(.text-\[8px\], .text-\[9px\], .text-\[10px\], .text-\[11px\], .text-\[12px\], .text-\[13px\], .text-\[14px\], .text-\[16px\], .text-xs, .text-sm, .text-base, .text-lg, .text-xl, .text-2xl, .text-3xl),
+.typography-size-medium :where(.text-\[8px\], .text-\[9px\], .text-\[10px\], .text-\[11px\], .text-\[12px\], .text-\[13px\], .text-\[14px\], .text-\[16px\], .text-xs, .text-sm, .text-base, .text-lg, .text-xl, .text-2xl, .text-3xl),
+.typography-size-large :where(.text-\[8px\], .text-\[9px\], .text-\[10px\], .text-\[11px\], .text-\[12px\], .text-\[13px\], .text-\[14px\], .text-\[16px\], .text-xs, .text-sm, .text-base, .text-lg, .text-xl, .text-2xl, .text-3xl) {
+  font-size: calc(var(--base-font-size) * var(--app-font-scale)) !important;
+}
+
+.typography-size-small .text-\[8px\],
+.typography-size-medium .text-\[8px\],
+.typography-size-large .text-\[8px\] {
+  --base-font-size: 8px;
+}
+
+.typography-size-small .text-\[9px\],
+.typography-size-medium .text-\[9px\],
+.typography-size-large .text-\[9px\] {
+  --base-font-size: 9px;
+}
+
+.typography-size-small .text-\[10px\],
+.typography-size-medium .text-\[10px\],
+.typography-size-large .text-\[10px\] {
+  --base-font-size: 10px;
+}
+
+.typography-size-small .text-\[11px\],
+.typography-size-medium .text-\[11px\],
+.typography-size-large .text-\[11px\] {
+  --base-font-size: 11px;
+}
+
+.typography-size-small .text-\[12px\],
+.typography-size-medium .text-\[12px\],
+.typography-size-large .text-\[12px\] {
+  --base-font-size: 12px;
+}
+
+.typography-size-small .text-\[13px\],
+.typography-size-medium .text-\[13px\],
+.typography-size-large .text-\[13px\] {
+  --base-font-size: 13px;
+}
+
+.typography-size-small .text-\[14px\],
+.typography-size-medium .text-\[14px\],
+.typography-size-large .text-\[14px\] {
+  --base-font-size: 14px;
+}
+
+.typography-size-small .text-\[16px\],
+.typography-size-medium .text-\[16px\],
+.typography-size-large .text-\[16px\] {
+  --base-font-size: 16px;
+}
+
+.typography-size-small .text-xs,
+.typography-size-medium .text-xs,
+.typography-size-large .text-xs {
+  --base-font-size: 12px;
+}
+
+.typography-size-small .text-sm,
+.typography-size-medium .text-sm,
+.typography-size-large .text-sm {
+  --base-font-size: 14px;
+}
+
+.typography-size-small .text-base,
+.typography-size-medium .text-base,
+.typography-size-large .text-base {
+  --base-font-size: 16px;
+}
+
+.typography-size-small .text-lg,
+.typography-size-medium .text-lg,
+.typography-size-large .text-lg {
+  --base-font-size: 18px;
+}
+
+.typography-size-small .text-xl,
+.typography-size-medium .text-xl,
+.typography-size-large .text-xl {
+  --base-font-size: 20px;
+}
+
+.typography-size-small .text-2xl,
+.typography-size-medium .text-2xl,
+.typography-size-large .text-2xl {
+  --base-font-size: 24px;
+}
+
+.typography-size-small .text-3xl,
+.typography-size-medium .text-3xl,
+.typography-size-large .text-3xl {
+  --base-font-size: 30px;
+}
+
+.typography-size-small :where(
+  .mac-menu-bar,
+  .menu-item,
+  .new-session-button,
+  .workspace-input,
+  .workspace-textarea,
+  .result-tab,
+  .result-selector-trigger,
+  .result-selector-option,
+  .window-statusbar,
+  .settings-modal-tab,
+  .settings-modal-version,
+  .settings-modal-alert,
+  .settings-modal-alert-warning,
+  .settings-modal-select,
+  .settings-modal-input,
+  .settings-key-status,
+  .settings-clear-button,
+  .settings-size-option,
+  .settings-save-message,
+  .settings-save-error,
+  .settings-apply-button
+),
+.typography-size-medium :where(
+  .mac-menu-bar,
+  .menu-item,
+  .new-session-button,
+  .workspace-input,
+  .workspace-textarea,
+  .result-tab,
+  .result-selector-trigger,
+  .result-selector-option,
+  .window-statusbar,
+  .settings-modal-tab,
+  .settings-modal-version,
+  .settings-modal-alert,
+  .settings-modal-alert-warning,
+  .settings-modal-select,
+  .settings-modal-input,
+  .settings-key-status,
+  .settings-clear-button,
+  .settings-size-option,
+  .settings-save-message,
+  .settings-save-error,
+  .settings-apply-button
+),
+.typography-size-large :where(
+  .mac-menu-bar,
+  .menu-item,
+  .new-session-button,
+  .workspace-input,
+  .workspace-textarea,
+  .result-tab,
+  .result-selector-trigger,
+  .result-selector-option,
+  .window-statusbar,
+  .settings-modal-tab,
+  .settings-modal-version,
+  .settings-modal-alert,
+  .settings-modal-alert-warning,
+  .settings-modal-select,
+  .settings-modal-input,
+  .settings-key-status,
+  .settings-clear-button,
+  .settings-size-option,
+  .settings-save-message,
+  .settings-save-error,
+  .settings-apply-button
+) {
+  font-size: calc(var(--base-font-size) * var(--app-font-scale)) !important;
+}
+
+.typography-size-small .mac-menu-bar,
+.typography-size-medium .mac-menu-bar,
+.typography-size-large .mac-menu-bar,
+.typography-size-small .menu-item,
+.typography-size-medium .menu-item,
+.typography-size-large .menu-item,
+.typography-size-small .new-session-button,
+.typography-size-medium .new-session-button,
+.typography-size-large .new-session-button,
+.typography-size-small .workspace-input,
+.typography-size-medium .workspace-input,
+.typography-size-large .workspace-input,
+.typography-size-small .workspace-textarea,
+.typography-size-medium .workspace-textarea,
+.typography-size-large .workspace-textarea,
+.typography-size-small .result-tab,
+.typography-size-medium .result-tab,
+.typography-size-large .result-tab,
+.typography-size-small .result-selector-trigger,
+.typography-size-medium .result-selector-trigger,
+.typography-size-large .result-selector-trigger,
+.typography-size-small .result-selector-option,
+.typography-size-medium .result-selector-option,
+.typography-size-large .result-selector-option,
+.typography-size-small .settings-clear-button,
+.typography-size-medium .settings-clear-button,
+.typography-size-large .settings-clear-button {
+  --base-font-size: 12px;
+}
+
+.typography-size-small .settings-size-option,
+.typography-size-medium .settings-size-option,
+.typography-size-large .settings-size-option {
+  --base-font-size: 12px;
+}
+
+.typography-size-small .window-statusbar,
+.typography-size-medium .window-statusbar,
+.typography-size-large .window-statusbar {
+  --base-font-size: 10px;
+}
+
+.typography-size-small .settings-modal-tab,
+.typography-size-medium .settings-modal-tab,
+.typography-size-large .settings-modal-tab {
+  --base-font-size: 12px;
+}
+
+.typography-size-small .settings-modal-version,
+.typography-size-medium .settings-modal-version,
+.typography-size-large .settings-modal-version,
+.typography-size-small .settings-modal-alert,
+.typography-size-medium .settings-modal-alert,
+.typography-size-large .settings-modal-alert {
+  --base-font-size: 12px;
+}
+
+.typography-size-small .settings-modal-alert-warning,
+.typography-size-medium .settings-modal-alert-warning,
+.typography-size-large .settings-modal-alert-warning,
+.typography-size-small .settings-modal-select,
+.typography-size-medium .settings-modal-select,
+.typography-size-large .settings-modal-select,
+.typography-size-small .settings-modal-input,
+.typography-size-medium .settings-modal-input,
+.typography-size-large .settings-modal-input,
+.typography-size-small .settings-save-message,
+.typography-size-medium .settings-save-message,
+.typography-size-large .settings-save-message,
+.typography-size-small .settings-save-error,
+.typography-size-medium .settings-save-error,
+.typography-size-large .settings-save-error {
+  --base-font-size: 12px;
+}
+
+.typography-size-small .settings-modal-version,
+.typography-size-medium .settings-modal-version,
+.typography-size-large .settings-modal-version {
+  --base-font-size: 10px;
+}
+
+.typography-size-small .settings-key-status,
+.typography-size-medium .settings-key-status,
+.typography-size-large .settings-key-status {
+  --base-font-size: 12px;
+}
+
+.typography-size-small .settings-apply-button,
+.typography-size-medium .settings-apply-button,
+.typography-size-large .settings-apply-button {
+  --base-font-size: 12px;
+}
+
 button,
 input,
 select,
@@ -97,6 +443,8 @@ button:disabled {
 }
 
 .mac-menu-bar {
+  position: relative;
+  z-index: 100;
   display: flex;
   height: 32px;
   width: 100%;
@@ -159,15 +507,14 @@ button:disabled {
 .menu-panel {
   border-radius: 10px;
   border: 1px solid rgb(var(--color-border) / 0.95);
-  background: rgb(var(--color-elevated) / 0.98);
+  background: rgb(var(--color-elevated));
   color: rgb(var(--color-text));
   box-shadow: 0 18px 42px rgb(0 0 0 / 0.16);
-  backdrop-filter: blur(18px);
 }
 
 .theme-glass .menu-panel {
   border-color: rgb(255 255 255 / 0.1);
-  background: rgb(24 21 46 / 0.95);
+  background: rgb(24 21 46);
   color: white;
   box-shadow: 0 22px 48px rgb(0 0 0 / 0.46), 0 0 24px rgb(8 145 178 / 0.08);
 }
@@ -434,6 +781,14 @@ button:disabled {
   box-shadow: 0 0 0 1px rgb(var(--color-primary) / 0.14);
 }
 
+.theme-glass .workspace-file-dropzone {
+  border-color: rgb(55 65 81);
+}
+
+.theme-glass .workspace-file-dropzone:hover {
+  border-color: rgb(75 85 99);
+}
+
 .theme-glass .workspace-input,
 .theme-glass .workspace-textarea {
   border-color: rgb(255 255 255 / 0.1);
@@ -480,6 +835,152 @@ button:disabled {
 .result-tab-active-liquid-glass {
   border-radius: 6px;
   background: rgb(124 58 237);
+}
+
+.result-selector {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.result-selector::after {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 29;
+  width: max(100%, 190px);
+  height: 8px;
+  content: "";
+}
+
+.result-selector-trigger {
+  display: inline-flex;
+  min-width: 132px;
+  max-width: 220px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  transition: filter 150ms ease, transform 150ms ease;
+}
+
+.result-selector-trigger:hover {
+  filter: brightness(1.06);
+}
+
+.result-selector-chevron {
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.78;
+}
+
+.result-selector-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+  display: grid;
+  min-width: 190px;
+  gap: 4px;
+  border: 1px solid rgb(var(--color-border));
+  border-radius: 12px;
+  background: rgb(var(--color-surface) / 0.98);
+  padding: 6px;
+  color: rgb(var(--color-text));
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  visibility: hidden;
+  box-shadow: 0 18px 42px rgb(0 0 0 / 0.18);
+  backdrop-filter: blur(14px);
+  transition:
+    opacity 140ms ease 0ms,
+    transform 140ms ease 0ms,
+    visibility 0ms linear 140ms;
+}
+
+.result-selector:hover .result-selector-menu,
+.result-selector-menu-open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+  visibility: visible;
+  transition:
+    opacity 140ms ease 300ms,
+    transform 140ms ease 300ms,
+    visibility 0ms linear 300ms;
+}
+
+.result-selector-menu-dismissed {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translateY(-4px) !important;
+  visibility: hidden !important;
+  transition: none !important;
+}
+
+.theme-glass .result-selector-menu {
+  border-color: rgb(255 255 255 / 0.1);
+  background: rgb(18 15 38 / 0.96);
+  box-shadow: 0 22px 48px rgb(0 0 0 / 0.46);
+}
+
+.theme-animal .result-selector-menu {
+  border-width: 2px;
+  border-color: rgb(142 126 101);
+  background: rgb(252 249 237);
+}
+
+.result-selector-option {
+  width: 100%;
+  border-radius: 8px;
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgb(var(--color-muted));
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.result-selector-option:hover {
+  background: rgb(var(--color-text) / 0.06);
+  color: rgb(var(--color-text));
+}
+
+.result-selector-option-active {
+  color: white;
+}
+
+.result-selector-option-active-claude {
+  background: rgb(242 125 38);
+}
+
+.result-selector-option-active-animal-crossing {
+  background: rgb(87 196 145);
+}
+
+.result-selector-option-active-liquid-glass {
+  background: rgb(124 58 237);
+}
+
+@keyframes result-selector-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .window-statusbar {
@@ -545,6 +1046,609 @@ button:disabled {
   border-radius: 24px;
   background: rgb(252 249 237);
   box-shadow: 0 4px 0 rgb(203 213 225), 0 8px 16px rgb(139 92 26 / 0.08);
+}
+
+.settings-modal-window {
+  --settings-window-radius: 22px;
+  --settings-window-border-width: 1px;
+  --settings-close-size: 16px;
+  position: relative;
+  display: flex;
+  width: min(92vw, 980px);
+  height: min(80vh, 640px);
+  min-height: 560px;
+  overflow: hidden;
+  transition:
+    background-color 260ms ease,
+    border-color 260ms ease,
+    box-shadow 260ms ease,
+    color 260ms ease;
+}
+
+.settings-theme-preview-motion::after {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  content: "";
+  opacity: 0;
+}
+
+.settings-theme-preview-motion[data-preview-animation-key]::after {
+  animation: settings-preview-wash 360ms ease-out;
+}
+
+.settings-modal-window-claude {
+  --settings-window-radius: 22px;
+  --settings-window-border-width: 1px;
+  border: 1px solid rgb(232 232 230);
+  border-radius: 22px;
+  background: rgb(253 253 252);
+  color: rgb(29 29 31);
+  box-shadow: 0 28px 92px rgb(0 0 0 / 0.34);
+}
+
+.settings-modal-window-animal-crossing {
+  --settings-window-radius: 28px;
+  --settings-window-border-width: 4px;
+  border: 4px solid rgb(142 126 101);
+  border-radius: 28px;
+  background: rgb(252 249 237);
+  color: rgb(74 59 50);
+  box-shadow: 0 5px 0 rgb(203 213 225), 0 26px 70px rgb(139 92 26 / 0.22);
+}
+
+.settings-modal-window-liquid-glass {
+  --settings-window-radius: 26px;
+  --settings-window-border-width: 1px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 26px;
+  background: rgb(18 15 38 / 0.95);
+  color: rgb(255 255 255);
+  box-shadow: 0 32px 96px rgb(0 0 0 / 0.58);
+  backdrop-filter: blur(18px);
+}
+
+.settings-modal-window-control {
+  position: absolute;
+  z-index: 10;
+  left: calc(var(--settings-window-radius) - (var(--settings-close-size) / 2) - var(--settings-window-border-width));
+  top: calc(var(--settings-window-radius) - (var(--settings-close-size) / 2) - var(--settings-window-border-width));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-modal-sidebar {
+  display: flex;
+  width: 25%;
+  min-width: 238px;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 70px 24px 28px;
+  transition:
+    background-color 260ms ease,
+    border-color 260ms ease;
+}
+
+.settings-modal-sidebar-claude {
+  border-right: 1px solid rgb(232 232 230);
+  background: rgb(247 247 245);
+}
+
+.settings-modal-sidebar-animal-crossing {
+  border-right: 2px solid rgb(216 208 186);
+  background: rgb(242 237 220);
+}
+
+.settings-modal-sidebar-liquid-glass {
+  border-right: 1px solid rgb(255 255 255 / 0.06);
+  background: rgb(0 0 0 / 0.28);
+}
+
+.settings-modal-tab {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  border-radius: 10px;
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.settings-modal-tab:hover {
+  transform: translateY(-1px);
+}
+
+.settings-modal-tab-claude {
+  color: rgb(92 92 92);
+}
+
+.settings-modal-tab-claude:hover {
+  background: rgb(235 235 233);
+}
+
+.settings-modal-tab-animal-crossing {
+  color: rgb(107 90 75);
+}
+
+.settings-modal-tab-animal-crossing:hover {
+  background: rgb(142 126 101 / 0.1);
+}
+
+.settings-modal-tab-liquid-glass {
+  color: rgb(209 213 219);
+}
+
+.settings-modal-tab-liquid-glass:hover {
+  background: rgb(255 255 255 / 0.06);
+}
+
+.settings-modal-tab-active-claude {
+  background: rgb(242 125 38);
+  color: rgb(255 255 255);
+}
+
+.settings-modal-tab-active-animal-crossing {
+  background: rgb(87 196 145);
+  color: rgb(255 255 255);
+}
+
+.settings-modal-tab-active-liquid-glass {
+  background: rgb(124 58 237);
+  color: rgb(255 255 255);
+}
+
+.settings-modal-version {
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 14px;
+  opacity: 0.38;
+}
+
+.settings-modal-content {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 70px 36px 34px;
+}
+
+.settings-modal-body {
+  animation: settings-panel-enter 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.settings-modal-header {
+  margin-bottom: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid currentColor;
+  padding-bottom: 22px;
+  opacity: 0.82;
+}
+
+.settings-modal-panel {
+  display: grid;
+  gap: 24px;
+}
+
+.settings-theme-card {
+  display: flex;
+  min-height: 104px;
+  flex-direction: column;
+  justify-content: space-between;
+  border-radius: 12px;
+  padding: 16px 14px;
+  text-align: left;
+  transform-origin: center;
+  transition:
+    background-color 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    color 220ms ease,
+    transform 180ms ease;
+}
+
+.settings-theme-card:hover {
+  transform: translateY(-2px);
+}
+
+.settings-theme-card:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.settings-theme-card-pulse {
+  animation: settings-theme-card-pop 420ms cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+.settings-theme-card-claude {
+  border: 2px solid rgb(232 232 230);
+  background: rgb(255 255 255);
+}
+
+.settings-theme-card-active-claude {
+  border-color: rgb(242 125 38);
+  background: rgb(242 125 38 / 0.05);
+  box-shadow: 0 14px 32px rgb(242 125 38 / 0.14);
+}
+
+.settings-theme-card-animal-crossing {
+  border: 2px solid rgb(216 208 186);
+  background: rgb(250 247 231);
+}
+
+.settings-theme-card-active-animal-crossing {
+  border-color: rgb(87 196 145);
+  background: rgb(87 196 145 / 0.12);
+  box-shadow: 0 14px 32px rgb(87 196 145 / 0.18);
+}
+
+.settings-theme-card-liquid-glass {
+  border: 2px solid rgb(255 255 255 / 0.1);
+  background: rgb(0 0 0 / 0.22);
+}
+
+.settings-theme-card-active-liquid-glass {
+  border-color: rgb(34 211 238);
+  background: rgb(124 58 237 / 0.22);
+  box-shadow: 0 16px 36px rgb(34 211 238 / 0.16);
+}
+
+.settings-theme-card-pulse-claude {
+  box-shadow: 0 0 0 6px rgb(242 125 38 / 0.12), 0 16px 36px rgb(242 125 38 / 0.16);
+}
+
+.settings-theme-card-pulse-animal-crossing {
+  box-shadow: 0 0 0 6px rgb(87 196 145 / 0.18), 0 16px 36px rgb(87 196 145 / 0.2);
+}
+
+.settings-theme-card-pulse-liquid-glass {
+  box-shadow: 0 0 0 6px rgb(34 211 238 / 0.16), 0 18px 42px rgb(124 58 237 / 0.24);
+}
+
+@keyframes settings-theme-card-pop {
+  0% {
+    transform: scale(0.98);
+  }
+
+  54% {
+    transform: scale(1.045);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes settings-panel-enter {
+  0% {
+    opacity: 0.72;
+    transform: translateY(6px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes settings-preview-wash {
+  0% {
+    opacity: 0;
+    background: radial-gradient(circle at 50% 42%, rgb(255 255 255 / 0.34), transparent 18%);
+  }
+
+  38% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    background: radial-gradient(circle at 50% 42%, rgb(255 255 255 / 0.08), transparent 58%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-modal-window,
+  .settings-modal-sidebar,
+  .settings-theme-card {
+    transition: none;
+  }
+
+  .settings-theme-preview-motion[data-preview-animation-key]::after,
+  .settings-modal-body,
+  .settings-theme-card-pulse {
+    animation: none;
+  }
+}
+
+.settings-modal-alert {
+  display: flex;
+  gap: 14px;
+  border-radius: 12px;
+  background: rgb(0 0 0 / 0.055);
+  padding: 14px;
+  font-size: 12px;
+  line-height: 1.55;
+  opacity: 0.76;
+}
+
+.settings-modal-alert-warning {
+  background: rgb(251 191 36 / 0.14);
+  color: rgb(180 83 9);
+  font-size: 12px;
+}
+
+.settings-modal-window-liquid-glass .settings-modal-alert {
+  background: rgb(255 255 255 / 0.08);
+}
+
+.settings-modal-select,
+.settings-modal-input {
+  width: 100%;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+.settings-modal-select-claude,
+.settings-modal-input-claude {
+  border: 1px solid rgb(232 232 230);
+  background: rgb(255 255 255);
+  color: rgb(29 29 31);
+}
+
+.settings-modal-select-claude:focus,
+.settings-modal-input-claude:focus {
+  border-color: rgb(242 125 38);
+  box-shadow: 0 0 0 1px rgb(242 125 38);
+}
+
+.settings-modal-select-animal-crossing,
+.settings-modal-input-animal-crossing {
+  border: 2px solid rgb(142 126 101);
+  background: rgb(250 247 231);
+  color: rgb(74 59 50);
+}
+
+.settings-modal-select-animal-crossing:focus,
+.settings-modal-input-animal-crossing:focus {
+  border-color: rgb(87 196 145);
+}
+
+.settings-modal-select-liquid-glass,
+.settings-modal-input-liquid-glass {
+  border: 1px solid rgb(255 255 255 / 0.12);
+  background: rgb(0 0 0 / 0.34);
+  color: rgb(255 255 255);
+}
+
+.settings-modal-select-liquid-glass:focus,
+.settings-modal-input-liquid-glass:focus {
+  border-color: rgb(34 211 238);
+}
+
+.settings-modal-radio {
+  accent-color: rgb(var(--color-primary));
+}
+
+.settings-size-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.74;
+  transition: background 140ms ease, border-color 140ms ease, opacity 140ms ease;
+}
+
+.settings-size-option:hover,
+.settings-size-option-active {
+  border-color: rgb(var(--color-primary) / 0.22);
+  background: rgb(var(--color-primary) / 0.1);
+  opacity: 1;
+}
+
+.settings-preview-box,
+.settings-engine-section {
+  border: 1px solid rgb(0 0 0 / 0.06);
+  border-radius: 14px;
+  background: rgb(0 0 0 / 0.045);
+  padding: 14px;
+}
+
+.settings-modal-window-liquid-glass .settings-preview-box,
+.settings-modal-window-liquid-glass .settings-engine-section {
+  border-color: rgb(255 255 255 / 0.08);
+  background: rgb(255 255 255 / 0.055);
+}
+
+.settings-key-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.settings-key-status.is-ready {
+  background: rgb(34 197 94 / 0.12);
+  color: rgb(21 128 61);
+}
+
+.settings-key-status.is-missing {
+  background: rgb(251 191 36 / 0.16);
+  color: rgb(180 83 9);
+}
+
+.settings-clear-button {
+  margin-top: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  border: 1px solid rgb(239 68 68 / 0.25);
+  background: rgb(239 68 68 / 0.1);
+  padding: 9px 14px;
+  color: rgb(185 28 28);
+  font-size: 12px;
+  font-weight: 700;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.settings-clear-button:hover {
+  background: rgb(239 68 68 / 0.16);
+}
+
+.settings-modal-footer {
+  margin-top: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-top: 2px solid currentColor;
+  padding-top: 16px;
+}
+
+.settings-save-message,
+.settings-save-error {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.settings-save-message {
+  color: rgb(var(--color-primary-strong));
+}
+
+.settings-save-error {
+  color: rgb(var(--color-danger));
+}
+
+.settings-apply-button {
+  min-width: 154px;
+  border-radius: 999px;
+  padding: 10px 18px;
+  color: rgb(255 255 255);
+  font-size: 12px;
+  font-weight: 800;
+  transition: filter 140ms ease, opacity 140ms ease, transform 140ms ease;
+}
+
+.settings-apply-button:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.settings-apply-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.settings-apply-button-claude {
+  background: rgb(242 125 38);
+}
+
+.settings-apply-button-animal-crossing {
+  border-radius: 16px;
+  background: rgb(87 196 145);
+}
+
+.settings-apply-button-liquid-glass {
+  background: rgb(124 58 237);
+}
+
+@media (max-width: 980px) {
+  .settings-modal-window {
+    height: min(88vh, 720px);
+    min-height: 0;
+  }
+
+  .settings-modal-sidebar {
+    min-width: 236px;
+    padding-inline: 18px;
+  }
+
+  .settings-modal-tab {
+    gap: 12px;
+    padding: 14px 16px;
+    font-size: 18px;
+  }
+
+  .settings-modal-content {
+    padding: 76px 28px 34px;
+  }
+
+  .settings-theme-card {
+    min-height: 150px;
+  }
+}
+
+@media (max-width: 760px) {
+  .settings-modal-window {
+    flex-direction: column;
+    width: min(94vw, 520px);
+    height: 92vh;
+  }
+
+  .settings-modal-sidebar {
+    width: 100%;
+    min-width: 0;
+    padding: 60px 16px 14px;
+  }
+
+  .settings-modal-sidebar > .space-y-4 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .settings-modal-version {
+    display: none;
+  }
+
+  .settings-modal-content {
+    padding: 24px 18px;
+  }
+
+  .settings-modal-header {
+    margin-bottom: 24px;
+    padding-bottom: 18px;
+  }
+
+  .settings-modal-tab {
+    font-size: 15px;
+  }
+
+  .settings-theme-card {
+    min-height: 128px;
+  }
+
+  .settings-modal-alert {
+    font-size: 15px;
+  }
+
+  .settings-modal-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-apply-button {
+    width: 100%;
+    min-width: 0;
+    font-size: 18px;
+  }
 }
 
 .theme-glass body {

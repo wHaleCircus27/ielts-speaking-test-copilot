@@ -7,6 +7,7 @@ import {
   Battery,
   BookOpen,
   Bookmark,
+  ChevronDown,
   CheckCircle2,
   Clock,
   CornerDownRight,
@@ -20,7 +21,6 @@ import {
   Pause,
   Play,
   Plus,
-  Save,
   Settings,
   Sparkles,
   Trash2,
@@ -28,12 +28,18 @@ import {
   Wifi,
   X,
 } from "lucide-react";
-import { SettingsPage, type SettingsPageHandle } from "../features/settings/SettingsPage";
+import { SettingsPage } from "../features/settings/SettingsPage";
 import { getAppConfig } from "../lib/config";
 import { gradeSpeaking } from "../lib/grading";
 import { selectMediaFile } from "../lib/media";
 import { invokeCommand, type HealthCheckResult } from "../lib/tauri";
-import { defaultPublicConfig, type PublicAppConfig, type ThemeId } from "../types/config";
+import {
+  defaultPublicConfig,
+  type FontPreference,
+  type FontSizePreference,
+  type PublicAppConfig,
+  type ThemeId,
+} from "../types/config";
 import type { AppError } from "../types/errors";
 import type { GradeResult, SpeakingPart } from "../types/grading";
 
@@ -192,6 +198,9 @@ const demoRecord: CorrectionRecord = {
 export function App() {
   const [config, setConfig] = useState<PublicAppConfig>(defaultPublicConfig);
   const [previewTheme, setPreviewTheme] = useState<ThemeId>(defaultPublicConfig.theme);
+  const [previewTypography, setPreviewTypography] = useState<PublicAppConfig["typography"]>(
+    defaultPublicConfig.typography,
+  );
   const [health, setHealth] = useState<HealthCheckResult | null>(null);
   const [startupError, setStartupError] = useState<AppError | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -204,16 +213,16 @@ export function App() {
   const [workspaceError, setWorkspaceError] = useState<AppError | null>(null);
   const [pendingMediaFileName, setPendingMediaFileName] = useState("");
   const userSelectedThemeRef = useRef(false);
-  const settingsPageRef = useRef<SettingsPageHandle>(null);
   const previewConfig = useMemo<PublicAppConfig>(
-    () => ({ ...config, theme: previewTheme }),
-    [config, previewTheme],
+    () => ({ ...config, theme: previewTheme, typography: previewTypography }),
+    [config, previewTheme, previewTypography],
   );
   const activeRecord = records.find((record) => record.id === activeRecordId) ?? null;
   const serviceLabel = health ? "大模型测评引擎已就绪" : startupError ? "本地服务未连接" : "检查本地服务";
   const themeLabel = getThemeLabel(previewTheme);
   const referenceTheme = getReferenceTheme(previewTheme);
   const themeClass = getReferenceThemeClass(previewTheme);
+  const typographyClass = getTypographyClass(previewTypography.font, previewTypography.fontSize);
 
   useEffect(() => {
     document.documentElement.classList.remove("theme-claude", "theme-animal", "theme-glass");
@@ -226,6 +235,7 @@ export function App() {
         setConfig(appConfig);
         if (!userSelectedThemeRef.current) {
           setPreviewTheme(appConfig.theme);
+          setPreviewTypography(appConfig.typography);
         }
         setHealth(healthCheck);
         setStartupError(null);
@@ -303,6 +313,7 @@ export function App() {
     setConfig(nextConfig);
     userSelectedThemeRef.current = false;
     setPreviewTheme(nextConfig.theme);
+    setPreviewTypography(nextConfig.typography);
   }
 
   function openMenu(menuId: MenuId, event: React.MouseEvent) {
@@ -318,6 +329,11 @@ export function App() {
 
   function closeSettings() {
     setPreviewTheme(config.theme);
+    setPreviewTypography(config.typography);
+    setSettingsOpen(false);
+  }
+
+  function closeSettingsAfterSave() {
     setSettingsOpen(false);
   }
 
@@ -406,7 +422,7 @@ export function App() {
   }
 
   return (
-    <div className={`flex h-screen w-screen flex-col overflow-hidden text-text ${themeClass}`}>
+    <div className={`flex h-screen w-screen flex-col overflow-hidden text-text ${themeClass} ${typographyClass}`}>
       <MacMenuBar
         activeMenu={activeMenu}
         menuClock={menuClock}
@@ -419,7 +435,7 @@ export function App() {
         onSwitchTheme={switchTheme}
       />
 
-      <div className="flex min-h-0 flex-1 items-center justify-center p-4">
+      <div className="flex min-h-0 flex-1 items-center justify-center p-2 sm:p-4">
         <div className="app-window flex h-full max-h-[820px] w-full max-w-6xl flex-col overflow-hidden">
           <div className="window-titlebar">
             <div className="flex items-center gap-1.5">
@@ -452,7 +468,7 @@ export function App() {
           </div>
 
           <div className="flex min-h-0 flex-1">
-            <aside className="finder-sidebar hidden h-full w-64 shrink-0 flex-col border-r border-border md:flex">
+            <aside className="finder-sidebar hidden h-full w-64 shrink-0 flex-col border-r border-border lg:flex">
               <HistorySidebar
                 records={records}
                 activeRecordId={activeRecordId}
@@ -463,7 +479,7 @@ export function App() {
               />
             </aside>
 
-            <main className="relative flex min-w-0 flex-1 flex-col justify-between overflow-y-auto bg-transparent p-5">
+            <main className="relative flex min-w-0 flex-1 flex-col justify-between overflow-y-auto bg-transparent p-3 sm:p-5">
               {startupError || workspaceError ? (
                 <div className="mb-4 rounded-lg border border-danger/30 bg-danger/10 p-3 text-xs font-semibold text-danger">
                   {(workspaceError ?? startupError)?.message}
@@ -497,41 +513,15 @@ export function App() {
       </div>
 
       {settingsOpen ? (
-        <div className="fixed inset-0 z-[2147483002] overflow-y-auto bg-black/60 px-4 py-6 backdrop-blur-sm">
-          <div className="settings-window mx-auto max-w-[1180px] overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-6 py-4">
-              <div>
-                <h2 className="text-lg font-bold">应用设置</h2>
-                <p className="mt-1 text-sm text-muted">配置 DeepSeek、Azure 和主题；密钥不会在前端回显。</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => settingsPageRef.current?.submit()}
-                  className="inline-flex h-9 items-center gap-2 rounded-app border border-primary bg-primary px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-strong"
-                >
-                  <Save size={16} />
-                  保存设置
-                </button>
-                <button
-                  type="button"
-                  onClick={closeSettings}
-                  className="flex size-9 items-center justify-center rounded-app border border-border bg-surface text-muted"
-                  aria-label="关闭设置"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <SettingsPage
-                ref={settingsPageRef}
-                config={config}
-                onConfigChange={applyConfig}
-                onThemePreview={setPreviewTheme}
-              />
-            </div>
-          </div>
+        <div className="fixed inset-0 z-[2147483002] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <SettingsPage
+            config={config}
+            onClose={closeSettings}
+            onConfigChange={applyConfig}
+            onSaved={closeSettingsAfterSave}
+            onTypographyPreview={setPreviewTypography}
+            onThemePreview={setPreviewTheme}
+          />
         </div>
       ) : null}
 
@@ -770,9 +760,12 @@ function Workspace({
   const [audioDuration, setAudioDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeTab, setActiveTab] = useState<ResultTab>("overall");
+  const [resultSelectorOpen, setResultSelectorOpen] = useState(false);
+  const [resultSelectorDismissed, setResultSelectorDismissed] = useState(false);
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const resultSelectorHoverTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (pendingMediaFileName) {
@@ -783,10 +776,20 @@ function Workspace({
   useEffect(() => {
     if (activeRecord) {
       setActiveTab("overall");
+      setResultSelectorOpen(false);
+      setResultSelectorDismissed(false);
       setIsPlaying(false);
       setCurrentTime(0);
     }
   }, [activeRecord]);
+
+  useEffect(() => {
+    return () => {
+      if (resultSelectorHoverTimerRef.current !== null) {
+        window.clearTimeout(resultSelectorHoverTimerRef.current);
+      }
+    };
+  }, []);
 
   const cardClass = getCardClass(currentTheme);
   const accentClass = getAccentButtonClass(currentTheme);
@@ -796,6 +799,17 @@ function Workspace({
   const displayedTitle = activeRecord?.title ?? "雅思口语作业批改";
   const answerLength = textInput.trim().length;
   const canSubmitText = serviceReady && config.deepseek.apiKeyConfigured && answerLength >= 20 && !isLoading;
+  const resultTabOptions = displayedResult
+    ? [
+        { id: "overall" as const, name: "综合批语" },
+        { id: "fluency" as const, name: `流利度 (${displayedResult.fluencyScore.score})` },
+        { id: "lexical" as const, name: `词汇 (${displayedResult.lexicalScore.score})` },
+        { id: "grammar" as const, name: `语法 (${displayedResult.grammarScore.score})` },
+        { id: "pronunciation" as const, name: `发音 (${displayedResult.pronunciationScore.score})` },
+        { id: "corrections" as const, name: `病句修正 (${displayedResult.keyCorrections.length})` },
+      ]
+    : [];
+  const activeResultTabName = resultTabOptions.find((tabOption) => tabOption.id === activeTab)?.name ?? "综合批语";
 
   function handleFile(file: File) {
     const isMedia =
@@ -812,6 +826,37 @@ function Workspace({
     setPlayerAudioUrl(URL.createObjectURL(file));
     setIsPlaying(false);
     setCurrentTime(0);
+  }
+
+  function openResultSelectorAfterDelay() {
+    if (resultSelectorHoverTimerRef.current !== null) {
+      window.clearTimeout(resultSelectorHoverTimerRef.current);
+    }
+
+    resultSelectorHoverTimerRef.current = window.setTimeout(() => {
+      setResultSelectorDismissed(false);
+      setResultSelectorOpen(true);
+      resultSelectorHoverTimerRef.current = null;
+    }, 300);
+  }
+
+  function closeResultSelector() {
+    if (resultSelectorHoverTimerRef.current !== null) {
+      window.clearTimeout(resultSelectorHoverTimerRef.current);
+      resultSelectorHoverTimerRef.current = null;
+    }
+    setResultSelectorOpen(false);
+    setResultSelectorDismissed(false);
+  }
+
+  function chooseResultTab(nextResultTab: ResultTab) {
+    setActiveTab(nextResultTab);
+    if (resultSelectorHoverTimerRef.current !== null) {
+      window.clearTimeout(resultSelectorHoverTimerRef.current);
+      resultSelectorHoverTimerRef.current = null;
+    }
+    setResultSelectorOpen(false);
+    setResultSelectorDismissed(true);
   }
 
   function clearSelectedFile() {
@@ -880,10 +925,10 @@ function Workspace({
   const currentScoreData = getScoreData(displayedResult, activeTab);
 
   return (
-    <div className="flex h-full w-full flex-col space-y-4">
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 lg:grid-cols-12">
-        <div className="flex flex-col space-y-4 lg:col-span-5">
-          <div className="flex items-center justify-between">
+    <div className="flex min-h-full w-full flex-col space-y-4 min-[1180px]:h-full">
+      <div className="grid grid-cols-1 gap-5 min-[1180px]:min-h-0 min-[1180px]:flex-1 min-[1180px]:grid-cols-12">
+        <div className="flex flex-col space-y-4 min-[1180px]:col-span-5 min-[1180px]:min-h-0">
+          <div className="flex min-h-8 flex-wrap items-center justify-between gap-3">
             <h3 className="flex items-center gap-1 text-xs font-bold uppercase tracking-tight opacity-70">
               <span>作业上传及录制</span>
             </h3>
@@ -905,7 +950,7 @@ function Workspace({
             </div>
           </div>
 
-          <div className={`${cardClass} relative flex h-full min-h-[340px] flex-col justify-between space-y-4 p-4`}>
+          <div className={`${cardClass} relative flex min-h-[340px] flex-col justify-between space-y-4 p-4 min-[1180px]:flex-1`}>
             {dragging ? (
               <div className="absolute inset-2 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-indigo-500 bg-indigo-500/10 backdrop-blur-sm">
                 <div className="space-y-1 text-center">
@@ -928,8 +973,8 @@ function Workspace({
               />
             </div>
 
-            <div className="grid gap-3 md:grid-cols-[130px_minmax(0,1fr)]">
-              <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wider opacity-70">
+            <div className="grid gap-3 md:grid-cols-[112px_minmax(0,1fr)]">
+              <label className="grid min-w-0 gap-1 text-[10px] font-bold uppercase tracking-wider opacity-70">
                 考试部分
                 <select
                   value={part}
@@ -941,7 +986,7 @@ function Workspace({
                   <option value="part3">Part 3</option>
                 </select>
               </label>
-              <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wider opacity-70">
+              <label className="grid min-w-0 gap-1 text-[10px] font-bold uppercase tracking-wider opacity-70">
                 题目
                 <input
                   value={question}
@@ -973,7 +1018,7 @@ function Workspace({
                       }
                     }}
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex cursor-pointer flex-col items-center justify-center space-y-2 rounded-xl border-2 border-dashed border-current/20 bg-current/[0.01] p-6 text-center transition hover:border-current/40"
+                    className="workspace-file-dropzone flex cursor-pointer flex-col items-center justify-center space-y-2 rounded-xl border-2 border-dashed border-current/20 bg-current/[0.01] p-6 text-center transition hover:border-current/40"
                   >
                     <Upload size={28} className="opacity-60" />
                     <div>
@@ -1059,15 +1104,15 @@ function Workspace({
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-col space-y-4 lg:col-span-7">
-          <div className="flex items-center justify-between">
+        <div className="flex flex-col space-y-4 min-[1180px]:col-span-7 min-[1180px]:min-h-0">
+          <div className="flex min-h-8 items-center justify-between">
             <h3 className="flex min-w-0 items-center gap-1.5 text-xs font-bold uppercase tracking-tight opacity-70">
               <span className="truncate">口语听写批改工作区 - {displayedTitle}</span>
             </h3>
           </div>
 
           {!displayedResult ? (
-            <div className={`${cardClass} flex min-h-[400px] flex-1 flex-col items-center justify-center space-y-4 p-8 text-center`}>
+            <div className={`${cardClass} flex min-h-[400px] flex-col items-center justify-center space-y-4 p-8 text-center min-[1180px]:flex-1`}>
               <div className="rounded-full bg-current/5 p-4">
                 <FileAudio size={42} className="opacity-50" />
               </div>
@@ -1084,7 +1129,7 @@ function Workspace({
               </div>
             </div>
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col space-y-4">
+            <div className="flex flex-col space-y-4 min-[1180px]:min-h-0 min-[1180px]:flex-1">
               <div className={`${cardClass} shrink-0 p-3`}>
                 <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                   <div className="flex items-center gap-3">
@@ -1094,7 +1139,7 @@ function Workspace({
                         {displayedResult.overallScore.toFixed(1)}
                       </span>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <h4 className="text-xs font-bold leading-snug">雅思口语专家评分</h4>
                       <p className="mt-0.5 max-w-[280px] truncate text-[10px] leading-normal opacity-60">
                         由 {config.deepseek.model} 大模型精细评估
@@ -1102,29 +1147,60 @@ function Workspace({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[10px] md:pb-0">
-                    {[
-                      { id: "overall", name: "综合批语" },
-                      { id: "fluency", name: `流利度 (${displayedResult.fluencyScore.score})` },
-                      { id: "lexical", name: `词汇 (${displayedResult.lexicalScore.score})` },
-                      { id: "grammar", name: `语法 (${displayedResult.grammarScore.score})` },
-                      { id: "pronunciation", name: `发音 (${displayedResult.pronunciationScore.score})` },
-                      { id: "corrections", name: `病句修正 (${displayedResult.keyCorrections.length})` },
-                    ].map((tab) => (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => setActiveTab(tab.id as ResultTab)}
-                        className={`result-tab ${activeTab === tab.id ? `result-tab-active result-tab-active-${currentTheme}` : ""}`}
-                      >
-                        {tab.name}
-                      </button>
-                    ))}
+                  <div
+                    className="result-selector"
+                    onMouseEnter={openResultSelectorAfterDelay}
+                    onMouseLeave={closeResultSelector}
+                    onFocus={openResultSelectorAfterDelay}
+                    onBlur={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget)) {
+                        closeResultSelector();
+                      }
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className={`result-selector-trigger result-tab-active-${currentTheme}`}
+                      aria-haspopup="listbox"
+                      aria-expanded={resultSelectorOpen}
+                      onClick={() => {
+                        setResultSelectorDismissed(false);
+                        setResultSelectorOpen((current) => !current);
+                      }}
+                    >
+                      <span className="truncate">{activeResultTabName}</span>
+                      <span className="result-selector-chevron" aria-hidden="true">
+                        <ChevronDown size={12} strokeWidth={2.5} />
+                      </span>
+                    </button>
+
+                    <div
+                      className={`result-selector-menu ${resultSelectorOpen ? "result-selector-menu-open" : ""} ${
+                        resultSelectorDismissed ? "result-selector-menu-dismissed" : ""
+                      }`}
+                      role="listbox"
+                      aria-label="选择评分维度"
+                    >
+                      {resultTabOptions.map((tabOption) => (
+                        <button
+                          key={tabOption.id}
+                          type="button"
+                          role="option"
+                          aria-selected={activeTab === tabOption.id}
+                          onClick={() => chooseResultTab(tabOption.id)}
+                          className={`result-selector-option ${
+                            activeTab === tabOption.id ? `result-selector-option-active result-selector-option-active-${currentTheme}` : ""
+                          }`}
+                        >
+                          {tabOption.name}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className={`${cardClass} min-h-0 flex-1 overflow-y-auto p-4 text-xs leading-relaxed`}>
+              <div className={`${cardClass} p-4 text-xs leading-relaxed min-[1180px]:min-h-0 min-[1180px]:flex-1 min-[1180px]:overflow-y-auto`}>
                 {activeTab === "overall" ? (
                   <div className="space-y-4">
                     <div>
@@ -1414,6 +1490,10 @@ function getReferenceThemeClass(theme: ThemeId) {
     return "assessor-theme-glass";
   }
   return "assessor-theme-claude";
+}
+
+function getTypographyClass(font: FontPreference, fontSize: FontSizePreference) {
+  return `typography-font-${font} typography-size-${fontSize}`;
 }
 
 function getThemeLabel(theme: ThemeId) {

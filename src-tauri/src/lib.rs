@@ -57,6 +57,23 @@ enum DeepSeekModel {
     DeepseekReasoner,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum FontPreference {
+    System,
+    Serif,
+    Space,
+    Mono,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum FontSizePreference {
+    Small,
+    Medium,
+    Large,
+}
+
 impl DeepSeekModel {
     fn as_str(&self) -> &'static str {
         match self {
@@ -82,8 +99,16 @@ struct StoredAzureConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+struct StoredTypographyConfig {
+    font: FontPreference,
+    font_size: FontSizePreference,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct StoredAppConfig {
     theme: ThemeId,
+    #[serde(default = "default_typography_config")]
+    typography: StoredTypographyConfig,
     deepseek: StoredDeepSeekConfig,
     azure: StoredAzureConfig,
 }
@@ -105,8 +130,16 @@ struct PublicAzureConfig {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PublicTypographyConfig {
+    font: FontPreference,
+    font_size: FontSizePreference,
+}
+
+#[derive(Debug, Clone, Serialize)]
 struct PublicAppConfig {
     theme: ThemeId,
+    typography: PublicTypographyConfig,
     deepseek: PublicDeepSeekConfig,
     azure: PublicAzureConfig,
 }
@@ -129,16 +162,32 @@ struct SaveAzureConfigInput {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveTypographyConfigInput {
+    font: FontPreference,
+    font_size: FontSizePreference,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 struct SaveAppConfigInput {
     theme: ThemeId,
+    typography: SaveTypographyConfigInput,
     deepseek: SaveDeepSeekConfigInput,
     azure: SaveAzureConfigInput,
+}
+
+fn default_typography_config() -> StoredTypographyConfig {
+    StoredTypographyConfig {
+        font: FontPreference::System,
+        font_size: FontSizePreference::Medium,
+    }
 }
 
 impl Default for StoredAppConfig {
     fn default() -> Self {
         Self {
             theme: ThemeId::ThemeClaude,
+            typography: default_typography_config(),
             deepseek: StoredDeepSeekConfig {
                 api_key: None,
                 base_url: "https://api.deepseek.com".to_string(),
@@ -157,6 +206,10 @@ impl From<StoredAppConfig> for PublicAppConfig {
     fn from(value: StoredAppConfig) -> Self {
         Self {
             theme: value.theme,
+            typography: PublicTypographyConfig {
+                font: value.typography.font,
+                font_size: value.typography.font_size,
+            },
             deepseek: PublicDeepSeekConfig {
                 api_key_configured: value.deepseek.api_key.is_some(),
                 base_url: value.deepseek.base_url,
@@ -191,6 +244,8 @@ fn save_app_config(app: AppHandle, input: SaveAppConfigInput) -> Result<PublicAp
 
     let mut current = read_config(&app)?;
     current.theme = input.theme;
+    current.typography.font = input.typography.font;
+    current.typography.font_size = input.typography.font_size;
     current.deepseek.base_url = input.deepseek.base_url.trim().to_string();
     current.deepseek.model = input.deepseek.model;
     current.azure.region = input.azure.region.trim().to_string();
@@ -375,6 +430,10 @@ mod tests {
     fn deserializes_save_config_from_frontend_payload() {
         let input: SaveAppConfigInput = serde_json::from_value(serde_json::json!({
             "theme": "theme-animal",
+            "typography": {
+                "font": "serif",
+                "fontSize": "large"
+            },
             "deepseek": {
                 "apiKey": "sk-test",
                 "baseUrl": "https://api.deepseek.com",
@@ -391,5 +450,7 @@ mod tests {
         assert_eq!(input.deepseek.api_key.as_deref(), Some("sk-test"));
         assert_eq!(input.deepseek.base_url, "https://api.deepseek.com");
         assert_eq!(input.deepseek.model.as_str(), "deepseek-chat");
+        assert!(matches!(input.typography.font, FontPreference::Serif));
+        assert!(matches!(input.typography.font_size, FontSizePreference::Large));
     }
 }
