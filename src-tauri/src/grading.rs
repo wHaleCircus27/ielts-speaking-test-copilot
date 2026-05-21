@@ -66,11 +66,11 @@ pub(crate) struct VocabularyCorrection {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ConfigValidationResult {
-    ok: bool,
-    api_key_configured: bool,
-    base_url: String,
-    model: String,
-    message: String,
+    pub(crate) ok: bool,
+    pub(crate) api_key_configured: bool,
+    pub(crate) base_url: String,
+    pub(crate) model: String,
+    pub(crate) message: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -429,6 +429,16 @@ mod tests {
         let invalid = valid_json().replace("\"overall_band\": 6.0", "\"overall_band\": 10.0");
         let error = parse_grade_result(&invalid).expect_err("invalid score should fail");
         assert_eq!(error.code, "GRADE_RESULT_SCORE_INVALID");
+    }
+
+    #[test]
+    fn rejects_missing_required_field() {
+        let invalid = valid_json().replace(
+            "\"personal_style_comment\": \"表达清楚，但需要减少重复。\",",
+            "",
+        );
+        let error = parse_grade_result(&invalid).expect_err("missing field should fail");
+        assert_eq!(error.code, "GRADE_RESULT_SCHEMA_INVALID");
     }
 
     #[test]
