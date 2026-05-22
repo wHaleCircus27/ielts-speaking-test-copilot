@@ -33,9 +33,14 @@ pub(crate) struct GradeRequest {
 
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct RagPromptExample {
+    #[serde(alias = "originalText")]
     original_text: String,
+    #[serde(alias = "revisedText")]
     revised_text: String,
+    #[serde(alias = "teacherComment")]
     teacher_comment: String,
+    #[serde(default, alias = "scoringPreference")]
+    scoring_preference: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -388,26 +393,7 @@ fn build_user_prompt(request: &GradeRequest) -> String {
         .filter(|value| !value.is_empty())
         .unwrap_or("未提供具体题目");
 
-    let rag_block = if request.rag_examples.is_empty() {
-        "无教师历史案例。".to_string()
-    } else {
-        request
-            .rag_examples
-            .iter()
-            .take(3)
-            .enumerate()
-            .map(|(index, example)| {
-                format!(
-                    "案例 {}:\n原文: {}\n修改: {}\n教师评语: {}",
-                    index + 1,
-                    example.original_text.trim(),
-                    example.revised_text.trim(),
-                    example.teacher_comment.trim()
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n\n")
-    };
+    let rag_block = build_rag_prompt_xml(&request.rag_examples);
 
     format!(
         "考试部分: {}\n题目: {}\n教师历史案例参考:\n{}\n\n学生回答:\n{}",
@@ -416,6 +402,74 @@ fn build_user_prompt(request: &GradeRequest) -> String {
         rag_block,
         request.text.trim()
     )
+}
+
+fn build_rag_prompt_xml(examples: &[RagPromptExample]) -> String {
+    let formatted_examples = examples
+        .iter()
+        .filter_map(format_rag_prompt_example)
+        .take(3)
+        .collect::<Vec<_>>();
+
+    if formatted_examples.is_empty() {
+        return "无教师历史案例。".to_string();
+    }
+
+    format!(
+        "<teacher_examples>\n{}\n</teacher_examples>",
+        formatted_examples.join("\n")
+    )
+}
+
+fn format_rag_prompt_example(example: &RagPromptExample) -> Option<String> {
+    let original_text = clean_prompt_field(&example.original_text, 1_200);
+    let revised_text = clean_prompt_field(&example.revised_text, 1_200);
+    let teacher_comment = clean_prompt_field(&example.teacher_comment, 900);
+    let scoring_preference = example
+        .scoring_preference
+        .as_ref()
+        .map(|value| clean_prompt_field(value, 500))
+        .filter(|value| !value.is_empty());
+
+    if original_text.is_empty() || revised_text.is_empty() || teacher_comment.is_empty() {
+        return None;
+    }
+
+    let scoring_preference_xml = scoring_preference
+        .map(|value| {
+            format!(
+                "\n  <scoring_preference>{}</scoring_preference>",
+                escape_xml_text(&value)
+            )
+        })
+        .unwrap_or_default();
+
+    Some(format!(
+        "<example>\n  <original_text>{}</original_text>\n  <revised_text>{}</revised_text>\n  <teacher_comment>{}</teacher_comment>{}\n</example>",
+        escape_xml_text(&original_text),
+        escape_xml_text(&revised_text),
+        escape_xml_text(&teacher_comment),
+        scoring_preference_xml,
+    ))
+}
+
+fn clean_prompt_field(value: &str, max_chars: usize) -> String {
+    value
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(max_chars)
+        .collect()
+}
+
+fn escape_xml_text(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
 }
 
 fn parse_grade_result(content: &str) -> Result<GradeResult, AppError> {
@@ -574,6 +628,76 @@ mod tests {
         assert!(prompt.contains("Describe a happy event"));
         assert!(prompt.contains("I got a bike"));
         assert!(prompt.contains("IELTS Speaking Part 2"));
+    }
+
+    #[test]
+    fn prompt_uses_xml_rag_examples_and_escapes_content() {
+        let prompt = build_user_prompt(&GradeRequest {
+            text: "I got a bike when I was seven and I felt very happy.".to_string(),
+            part: SpeakingPart::Part2,
+            question: Some("Describe a happy event".to_string()),
+            rag_examples: vec![RagPromptExample {
+                original_text: "I <like> simple words & repeat them.".to_string(),
+                revised_text: "I prefer precise vocabulary.".to_string(),
+                teacher_comment: "Avoid \"very\" and add examples.".to_string(),
+                scoring_preference: Some("重视 fluency > rare words".to_string()),
+            }],
+        });
+
+        assert!(prompt.contains("<teacher_examples>"));
+        assert!(prompt.contains("<example>"));
+        assert!(prompt.contains("I &lt;like&gt; simple words &amp; repeat them."));
+        assert!(prompt.contains("Avoid &quot;very&quot; and add examples."));
+        assert!(prompt
+            .contains("<scoring_preference>重视 fluency &gt; rare words</scoring_preference>"));
+    }
+
+    #[test]
+    fn rag_prompt_limits_examples_to_three() {
+        let examples = (0..5)
+            .map(|index| RagPromptExample {
+                original_text: format!("Original {index}"),
+                revised_text: format!("Revised {index}"),
+                teacher_comment: format!("Comment {index}"),
+                scoring_preference: None,
+            })
+            .collect::<Vec<_>>();
+
+        let xml = build_rag_prompt_xml(&examples);
+
+        assert_eq!(xml.matches("<example>").count(), 3);
+        assert!(xml.contains("Original 2"));
+        assert!(!xml.contains("Original 3"));
+    }
+
+    #[test]
+    fn rag_prompt_falls_back_when_examples_are_empty_after_cleaning() {
+        let xml = build_rag_prompt_xml(&[RagPromptExample {
+            original_text: " ".to_string(),
+            revised_text: "Revised".to_string(),
+            teacher_comment: "Comment".to_string(),
+            scoring_preference: None,
+        }]);
+
+        assert_eq!(xml, "无教师历史案例。");
+    }
+
+    #[test]
+    fn rag_prompt_truncates_long_fields() {
+        let long_text = "a".repeat(1_500);
+        let xml = build_rag_prompt_xml(&[RagPromptExample {
+            original_text: long_text,
+            revised_text: "Revised".to_string(),
+            teacher_comment: "Comment".to_string(),
+            scoring_preference: None,
+        }]);
+
+        let extracted = xml
+            .split("<original_text>")
+            .nth(1)
+            .and_then(|value| value.split("</original_text>").next())
+            .expect("original text tag");
+        assert_eq!(extracted.chars().count(), 1_200);
     }
 
     #[test]

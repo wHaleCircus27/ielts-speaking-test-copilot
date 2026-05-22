@@ -1,9 +1,10 @@
 export type SpeakingPart = "part1" | "part2" | "part3";
 
 export type RagPromptExample = {
-  original_text: string;
-  revised_text: string;
-  teacher_comment: string;
+  originalText: string;
+  revisedText: string;
+  teacherComment: string;
+  scoringPreference?: string;
 };
 
 export type GradeRequest = {

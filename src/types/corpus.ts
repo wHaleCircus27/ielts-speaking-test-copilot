@@ -13,3 +13,8 @@ export type TeacherCase = TeacherCaseInput & {
   createdAt: string;
   updatedAt: string;
 };
+
+export type TeacherCaseMatch = {
+  case: TeacherCase;
+  score: number;
+};

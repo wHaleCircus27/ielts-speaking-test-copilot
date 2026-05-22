@@ -9,7 +9,7 @@
 - MVP 2 已完成媒体导入与 FFmpeg/afconvert 转码基础链路。
 - MVP 3 已代码收口：按微软文档接入 Azure Speech SDK continuous mode 长音频发音评估、逐词 transcript、停顿标注、低分词、点击跳转和播放高亮。
 - MVP 3 当前验收依据为微软文档结构一致性和 mock 自动化验证；真实 Azure API Key、region、token 与 30 秒以上长音频验证已暂缓到后续人工验收。
-- MVP 4 已启动第一阶段：教师案例库支持 SQLite 本地新增、列表、编辑和单条删除；当前通过系统 `sqlite3` 写入本地数据库，Embedding、`sqlite-vec`、Top-K 检索和 Prompt 注入仍在后续范围。
+- MVP 4 已接入教师案例库、智谱 `embedding-3` 向量重建、本地 SQLite JSON 向量存储、Top-K 检索和 RAG Prompt 注入准备层；真实智谱 Key 验证待提供 Key 后补充。
 
 详细计划见：
 
@@ -69,6 +69,6 @@ FFmpeg 查找顺序：
 
 - API Key 不写入前端源码。
 - 前端只显示密钥是否已配置，不回显完整密钥。
-- DeepSeek 连通性测试只读取本地已保存配置或 `test-resource/` 中的本地测试 Key，不将 Key 写入仓库、日志或测试输出。
+- DeepSeek 连通性测试和智谱 Embedding 验证只读取本地已保存配置或 `test-resource/` 中的本地测试 Key，不将 Key 写入仓库、日志或测试输出。
 - 本地路径、转码日志和 API 错误信息不得泄露密钥。
 - 不执行批量删除文件或目录操作。

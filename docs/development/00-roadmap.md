@@ -105,7 +105,7 @@
 - R-301：设计教师案例数据结构。
 - R-302：实现案例录入页面。
 - R-303：建立 SQLite 表。
-- R-304：接入 DeepSeek Embedding。
+- R-304：接入智谱 `embedding-3`。
 - R-305：建立 `sqlite-vec` 向量检索。
 - R-306：实现 Top-K 检索。
 - R-307：将案例格式化为 XML 片段注入 Prompt。

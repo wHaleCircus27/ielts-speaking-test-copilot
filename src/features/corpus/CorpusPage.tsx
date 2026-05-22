@@ -7,6 +7,7 @@ import {
   createTeacherCase,
   deleteTeacherCase,
   listTeacherCases,
+  rebuildTeacherCaseEmbedding,
   updateTeacherCase,
 } from "../../lib/corpus";
 import type { TeacherCase, TeacherCaseInput } from "../../types/corpus";
@@ -26,6 +27,7 @@ export function CorpusPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingCaseId, setDeletingCaseId] = useState<string | null>(null);
+  const [rebuildingCaseId, setRebuildingCaseId] = useState<string | null>(null);
   const [error, setError] = useState<AppError | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const selectedCase = useMemo(
@@ -127,6 +129,22 @@ export function CorpusPage() {
     }
   }
 
+  async function rebuildEmbedding(teacherCaseId: string) {
+    setRebuildingCaseId(teacherCaseId);
+    setError(null);
+    setNotice(null);
+    try {
+      await rebuildTeacherCaseEmbedding(teacherCaseId);
+      const nextTeacherCases = await listTeacherCases();
+      setTeacherCases(nextTeacherCases);
+      setNotice("教师案例 Embedding 已重建。");
+    } catch (caught) {
+      setError(caught as AppError);
+    } finally {
+      setRebuildingCaseId(null);
+    }
+  }
+
   function updateFormField(field: keyof TeacherCaseInput, value: string) {
     setFormInput((currentInput) => ({
       ...currentInput,
@@ -141,7 +159,7 @@ export function CorpusPage() {
           <div>
             <h2 className="text-xl font-semibold">教师案例库</h2>
             <p className="mt-1 text-sm leading-6 text-muted">
-              MVP 4 第一阶段提供 SQLite 本地案例增删改查；Embedding、Top-K 检索和 Prompt 注入保留为后续能力。
+              MVP 4 当前提供 SQLite 本地案例管理、智谱 embedding-3 向量重建、Top-K 检索和 RAG Prompt 注入准备层。
             </p>
           </div>
           <Button type="button" variant="secondary" onClick={startNewCase} disabled={saving}>
@@ -270,6 +288,19 @@ export function CorpusPage() {
                     <Button type="button" variant="secondary" onClick={() => editTeacherCase(teacherCase)}>
                       <Edit3 size={14} className="mr-2" />
                       编辑
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => void rebuildEmbedding(teacherCase.id)}
+                      disabled={rebuildingCaseId === teacherCase.id}
+                    >
+                      {rebuildingCaseId === teacherCase.id ? (
+                        <Loader2 size={14} className="mr-2 animate-spin" />
+                      ) : (
+                        <RefreshCw size={14} className="mr-2" />
+                      )}
+                      重建 Embedding
                     </Button>
                     <Button
                       type="button"

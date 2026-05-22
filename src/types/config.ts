@@ -21,6 +21,12 @@ export type PublicAppConfig = {
     baseUrl: string;
     model: DeepSeekModel;
   };
+  zhipu: {
+    apiKeyConfigured: boolean;
+    baseUrl: string;
+    model: string;
+    dimensions: 256 | 512 | 1024 | 2048;
+  };
   azure: {
     keyConfigured: boolean;
     region: string;
@@ -39,6 +45,12 @@ export type SaveAppConfigInput = {
     baseUrl: string;
     model: DeepSeekModel;
   };
+  zhipu: {
+    apiKey?: string;
+    baseUrl: string;
+    model: string;
+    dimensions: 256 | 512 | 1024 | 2048;
+  };
   azure: {
     key?: string;
     region: string;
@@ -56,6 +68,12 @@ export const defaultPublicConfig: PublicAppConfig = {
     apiKeyConfigured: false,
     baseUrl: "https://api.deepseek.com",
     model: "deepseek-v4-flash",
+  },
+  zhipu: {
+    apiKeyConfigured: false,
+    baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+    model: "embedding-3",
+    dimensions: 1024,
   },
   azure: {
     keyConfigured: false,

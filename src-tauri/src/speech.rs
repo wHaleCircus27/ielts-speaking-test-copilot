@@ -95,7 +95,10 @@ pub(crate) async fn issue_azure_speech_token(
     if !status.is_success() {
         return Err(AppError::new(
             "AZURE_TOKEN_REQUEST_REJECTED",
-            format!("Azure Speech token 请求失败，服务返回状态 {}。", status.as_u16()),
+            format!(
+                "Azure Speech token 请求失败，服务返回状态 {}。",
+                status.as_u16()
+            ),
         ));
     }
 
@@ -116,7 +119,10 @@ pub(crate) async fn issue_azure_speech_token(
 fn azure_token_endpoint(region: &str) -> Result<String, AppError> {
     let normalized_region = region.trim();
     if normalized_region.is_empty() {
-        return Err(AppError::new("AZURE_REGION_EMPTY", "Azure region 不能为空。"));
+        return Err(AppError::new(
+            "AZURE_REGION_EMPTY",
+            "Azure region 不能为空。",
+        ));
     }
 
     Ok(format!(

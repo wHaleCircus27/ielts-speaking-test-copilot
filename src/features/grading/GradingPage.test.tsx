@@ -2,7 +2,21 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GradingPage } from "./GradingPage";
 import { defaultPublicConfig, type PublicAppConfig } from "../../types/config";
+import { searchTeacherCases } from "../../lib/corpus";
 import { gradeSpeaking } from "../../lib/grading";
+import type { TeacherCaseMatch } from "../../types/corpus";
+
+vi.mock("../../lib/corpus", () => ({
+  mapTeacherCaseMatchesToRagExamples: vi.fn((matches: TeacherCaseMatch[]) =>
+    matches.slice(0, 3).map((match) => ({
+      originalText: match.case.originalText,
+      revisedText: match.case.revisedText,
+      teacherComment: match.case.teacherComment,
+      scoringPreference: match.case.scoringPreference,
+    })),
+  ),
+  searchTeacherCases: vi.fn(),
+}));
 
 vi.mock("../../lib/grading", () => ({
   gradeSpeaking: vi.fn(),
@@ -38,6 +52,7 @@ const mockGradeResult = {
 describe("GradingPage", () => {
   beforeEach(() => {
     vi.mocked(gradeSpeaking).mockReset();
+    vi.mocked(searchTeacherCases).mockReset();
   });
 
   it("does not call gradeSpeaking when DeepSeek key is missing", () => {
@@ -70,5 +85,70 @@ describe("GradingPage", () => {
     expect(screen.getByText("very happy")).toBeInTheDocument();
     expect(screen.getByText("delighted")).toBeInTheDocument();
     expect(screen.getByText("I was delighted when my parents bought me a bicycle.")).toBeInTheDocument();
+  });
+
+  it("submits without RAG examples when Zhipu key is not configured", async () => {
+    vi.mocked(gradeSpeaking).mockResolvedValue(mockGradeResult);
+    render(<GradingPage config={configuredConfig} serviceReady />);
+
+    fireEvent.change(screen.getByLabelText("学生回答文本"), {
+      target: { value: "This is a long enough speaking answer for normal grading without RAG." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /生成批改报告/ }));
+
+    await waitFor(() => {
+      expect(gradeSpeaking).toHaveBeenCalledWith({
+        text: "This is a long enough speaking answer for normal grading without RAG.",
+        part: "part2",
+        question: "Describe a happy event in your childhood",
+        ragExamples: [],
+      });
+    });
+    expect(searchTeacherCases).not.toHaveBeenCalled();
+  });
+
+  it("injects Zhipu-backed teacher case matches into the grading request", async () => {
+    vi.mocked(gradeSpeaking).mockResolvedValue(mockGradeResult);
+    vi.mocked(searchTeacherCases).mockResolvedValue([
+      {
+        case: {
+          id: "case-1",
+          originalText: "I like travel.",
+          revisedText: "I am fond of travelling.",
+          teacherComment: "替换重复表达。",
+          scoringPreference: "重视自然表达。",
+          embeddingStatus: "ready",
+          createdAt: "1",
+          updatedAt: "1",
+        },
+        score: 0.91,
+      },
+    ]);
+    render(<GradingPage config={{ ...configuredConfig, zhipu: { ...configuredConfig.zhipu, apiKeyConfigured: true } }} serviceReady />);
+
+    fireEvent.change(screen.getByLabelText("学生回答文本"), {
+      target: { value: "This is a long enough speaking answer about travelling with friends." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /生成批改报告/ }));
+
+    await waitFor(() => {
+      expect(searchTeacherCases).toHaveBeenCalledWith(
+        "This is a long enough speaking answer about travelling with friends.",
+        3,
+      );
+    });
+    expect(gradeSpeaking).toHaveBeenCalledWith({
+      text: "This is a long enough speaking answer about travelling with friends.",
+      part: "part2",
+      question: "Describe a happy event in your childhood",
+      ragExamples: [
+        {
+          originalText: "I like travel.",
+          revisedText: "I am fond of travelling.",
+          teacherComment: "替换重复表达。",
+          scoringPreference: "重视自然表达。",
+        },
+      ],
+    });
   });
 });

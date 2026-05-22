@@ -93,10 +93,10 @@
 ### MVP 4
 
 - 第一阶段已启动：教师案例可新增、查看、编辑和单个删除，使用 SQLite 本地存储。
-- Embedding 失败可重试。
-- Top-K 检索返回相似案例。
-- 批改 Prompt 包含最多 3 个 `<example>`。
-- RAG 失败不阻塞普通批改。
+- 当前阶段：教师案例 Embedding 切换为智谱 `embedding-3`，支持重建向量、本地 SQLite JSON 向量存储和 Rust 层 cosine similarity Top-K。
+- 批改 Prompt 支持最多 3 个 XML `<example>`，并做清洗、截断和 XML 转义。
+- RAG 检索成功时自动注入最多 3 个相似案例；智谱 Key 缺失或检索失败时不阻塞普通批改。
+- Deferred：用户提供智谱 API Key 后，补真实 `embedding-3` 重建和 Top-K 人工验收；后续再迁移 `sqlite-vec`。
 
 ## 发布前检查
 
@@ -121,8 +121,8 @@
 ## 当前验证记录
 
 - `pnpm typecheck` 通过。
-- `pnpm test` 通过：7 个测试文件，24 个测试，覆盖 MVP 3 mock 验收和 MVP 4 教师案例 CRUD 页面。
-- `cd src-tauri && cargo test` 通过：20 个 Rust 测试，覆盖既有 Rust 命令和 MVP 4 SQLite CRUD。
+- `pnpm test` 通过：7 个测试文件，27 个测试，覆盖 MVP 3 mock 验收、MVP 4 教师案例 CRUD 页面和 RAG 自动检索注入。
+- `cd src-tauri && cargo test` 通过：30 个 Rust 测试，覆盖既有 Rust 命令、MVP 4 SQLite CRUD、智谱配置校验、向量存储和 cosine similarity。
 - `pnpm build` 通过。
 - MVP 3 mock 验证通过：Microsoft Learn Pronunciation Assessment detailed JSON 形态可映射为 `SpeechAssessmentResult`，逐词 transcript 可生成停顿 token、低分词状态、音素错误 tooltip 和当前播放词。
 - MVP 3 UI mock 验证通过：主工作台转码后会校验 Azure 配置、调用语音评估、生成历史报告；媒体页可转码后手动开始语音评估。
@@ -131,10 +131,11 @@
 - MVP 2 原文件保护验收通过：转码输出写入独立 WAV 文件，原始 MP4、MP3、M4A、WAV 输入文件未被覆盖。
 - 当前机器未安装 `ffmpeg` / `ffprobe`，macOS `afconvert` 可用；本次媒体验收覆盖了 FFmpeg 缺失时的 macOS 后备转码路径。
 - 使用本地 `test-resource/deepseekApiKey.txt` 验证 DeepSeek `/models`，HTTP 200，返回 `deepseek-v4-flash`、`deepseek-v4-pro`。
+- 使用本地 `test-resource/deepseekApiKey.txt` 验证 DeepSeek `/embeddings` 与 `/v1/embeddings`，均返回 HTTP 404；测试未输出 API Key。
 - 使用 `deepseek-v4-flash` 验证 `/chat/completions` JSON 模式，HTTP 200，返回 `{"ok":true,"service":"deepseek"}`。
 - 上述真实服务测试未输出、提交或写入 API Key。
 - Deferred 人工验收：获得真实 Azure Speech Key 后，配置真实 region，并使用 30 秒以上 WAV 验证 continuous pronunciation assessment、点击跳转和播放高亮。
-- MVP 4 第一阶段验证：教师案例 SQLite CRUD、前端新增/编辑/单条删除页面流程已纳入自动化测试；Embedding、`sqlite-vec`、Top-K 检索和 Prompt 注入仍在后续阶段。
+- MVP 4 当前验证：教师案例 SQLite CRUD、前端新增/编辑/单条删除页面流程、智谱配置校验、向量存储清理、cosine similarity、RAG XML Prompt 注入工具和前端自动检索注入均纳入自动化测试；真实智谱 API Key 验证 deferred。
 
 ## 风险与后续扩展
 
