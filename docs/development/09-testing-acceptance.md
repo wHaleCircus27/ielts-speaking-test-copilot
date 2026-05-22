@@ -133,9 +133,11 @@
 - 使用本地 `test-resource/deepseekApiKey.txt` 验证 DeepSeek `/models`，HTTP 200，返回 `deepseek-v4-flash`、`deepseek-v4-pro`。
 - 使用本地 `test-resource/deepseekApiKey.txt` 验证 DeepSeek `/embeddings` 与 `/v1/embeddings`，均返回 HTTP 404；测试未输出 API Key。
 - 使用 `deepseek-v4-flash` 验证 `/chat/completions` JSON 模式，HTTP 200，返回 `{"ok":true,"service":"deepseek"}`。
+- 使用本地 `test-resource/zhipuApiKey.txt` 验证智谱 `embedding-3`，`dimensions=1024`，warmup 延迟约 `419.8 ms`，5 次连续请求平均约 `210.4 ms`，p50 约 `209.1 ms`，p95 约 `263.8 ms`。
+- 使用 3 条教师案例做端到端基准：总耗时约 `760 ms`，查询延迟约 `188.8 ms`，Top-K 结果依次为 `fluency-focus` `0.9249`、`grammar-focus` `0.8418`、`vocabulary-focus` `0.8266`。
 - 上述真实服务测试未输出、提交或写入 API Key。
 - Deferred 人工验收：获得真实 Azure Speech Key 后，配置真实 region，并使用 30 秒以上 WAV 验证 continuous pronunciation assessment、点击跳转和播放高亮。
-- MVP 4 当前验证：教师案例 SQLite CRUD、前端新增/编辑/单条删除页面流程、智谱配置校验、向量存储清理、cosine similarity、RAG XML Prompt 注入工具和前端自动检索注入均纳入自动化测试；真实智谱 API Key 验证 deferred。
+- MVP 4 当前验证：教师案例 SQLite CRUD、前端新增/编辑/单条删除页面流程、智谱配置校验、向量存储清理、cosine similarity、RAG XML Prompt 注入工具、前端自动检索注入和真实智谱 embedding-3 基准测试均纳入记录；后续可继续补更多样本规模的批量基准。
 
 ## 风险与后续扩展
 
