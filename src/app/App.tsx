@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PropsWithChildren } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import {
-  AlertCircle,
   Apple,
   ArrowRight,
   Battery,
@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   Clock,
   CornerDownRight,
+  Database,
   FileAudio,
   FileText,
   FileVideo,
@@ -18,6 +19,7 @@ import {
   HardDrive,
   HelpCircle,
   History,
+  Loader2,
   Pause,
   Play,
   Plus,
@@ -28,11 +30,14 @@ import {
   Wifi,
   X,
 } from "lucide-react";
+import { CorpusPage } from "../features/corpus/CorpusPage";
 import { SettingsPage } from "../features/settings/SettingsPage";
 import { getAppConfig } from "../lib/config";
 import { gradeSpeaking } from "../lib/grading";
-import { selectMediaFile } from "../lib/media";
+import { getMediaMetadata, selectMediaFile, transcodeMedia } from "../lib/media";
+import { assessPronunciation, validateAzureConfig } from "../lib/speech";
 import { invokeCommand, type HealthCheckResult } from "../lib/tauri";
+import { buildTranscriptTokens, findCurrentWordToken, getTranscriptText, lowAccuracyThreshold } from "../lib/transcript";
 import {
   defaultPublicConfig,
   type FontPreference,
@@ -42,6 +47,8 @@ import {
 } from "../types/config";
 import type { AppError } from "../types/errors";
 import type { GradeResult, SpeakingPart } from "../types/grading";
+import type { MediaMetadata, MediaTranscodeResult } from "../types/media";
+import type { SpeechAssessmentResult, TranscriptToken } from "../types/speech";
 
 type MenuId = "app" | "file" | "themes";
 type InputMode = "media" | "text";
@@ -78,6 +85,8 @@ type WorkspaceResult = {
   generalFeedback: string;
   modelAnswer: string;
   transcript: TranscriptChunk[];
+  transcriptTokens?: TranscriptToken[];
+  speechAssessment?: SpeechAssessmentResult;
 };
 
 type CorrectionRecord = {
@@ -92,109 +101,6 @@ type CorrectionRecord = {
 
 const recordsStorageKey = "ielts_copilot_correction_records";
 
-const demoRecord: CorrectionRecord = {
-  id: "demo-assignment-technology",
-  title: "雅思 Part 2: 科技对人类沟通的影响 (示范作业)",
-  date: "2026-05-21 16:15",
-  fileName: "ielts_speaking_sample_tech.mp3",
-  duration: "00:30",
-  transcript: [
-    {
-      timestamp: "00:00",
-      text: "Well, speak from my experience, I think technology have changed communication very significant.",
-      seconds: 0,
-    },
-    {
-      timestamp: "00:07",
-      text: "In the past, people write letters, but now we use smartphones to chat everywhere...",
-      seconds: 7,
-    },
-    {
-      timestamp: "00:15",
-      text: "...which is very faster and easy for people keep in touch with families.",
-      seconds: 15,
-    },
-    {
-      timestamp: "00:23",
-      text: "I actually believe this changes have brought many benefit for society.",
-      seconds: 23,
-    },
-  ],
-  result: {
-    overallScore: 6,
-    fluencyScore: {
-      score: 6.5,
-      feedback: "Your phrasing speed is functional, but minor hesitations and basic linkers limit the sense of progression.",
-      strengths: ["Linguistic pace is consistent and easy to follow", "Natural paragraphing with standard pauses"],
-      improvements: ["Use more precise discourse markers", "Practice reducing self-correction and repetition"],
-    },
-    lexicalScore: {
-      score: 5.5,
-      feedback: "You use functional vocabulary, but several basic phrases could be upgraded into stronger IELTS collocations.",
-      strengths: ["Topic vocabulary is understandable", "No major word choice blocks comprehension"],
-      improvements: ["Replace broad verbs with precise alternatives", "Review word class changes such as significant/significantly"],
-    },
-    grammarScore: {
-      score: 5.5,
-      feedback: "Subject-verb agreement and comparative structures are the clearest limits on the current answer.",
-      strengths: ["Clear sentence coordination", "Some attempted complex structures"],
-      improvements: ["Check singular verbs after abstract nouns", "Avoid double comparative patterns such as very faster"],
-    },
-    pronunciationScore: {
-      score: 7,
-      feedback: "Pronunciation is generally clear, with occasional flat stress on longer academic vocabulary.",
-      strengths: ["Consonant clusters remain comprehensible", "Pauses mostly align with meaning units"],
-      improvements: ["Vary intonation to sound less rehearsed", "Review stress in multi-syllable academic words"],
-    },
-    keyCorrections: [
-      {
-        original: "Well, speak from my experience",
-        improved: "Well, speaking from personal experience",
-        reason: "Use the gerund form to open the phrase naturally; personal experience sounds more idiomatic.",
-        category: "vocabulary",
-      },
-      {
-        original: "technology have changed communication very significant",
-        improved: "technology has significantly altered communication",
-        reason: "Technology is singular, so it takes has; significantly is the adverb form needed before altered.",
-        category: "grammar",
-      },
-      {
-        original: "which is very faster and easy",
-        improved: "which is much faster and more convenient",
-        reason: "Very does not modify comparative adjectives; much faster and more convenient are natural upgrades.",
-        category: "grammar",
-      },
-    ],
-    generalFeedback:
-      "A solid Band 6.0 performance. The response communicates the main idea clearly, but agreement errors and limited collocations hold it back from a higher band.",
-    modelAnswer:
-      "Well, speaking from personal experience, I would argue that technological breakthroughs have fundamentally changed human interaction. In the past, people relied on letters, whereas now smartphones allow us to stay in touch instantly and conveniently.",
-    transcript: [
-      {
-        timestamp: "00:00",
-        text: "Well, speak from my experience, I think technology have changed communication very significant.",
-        seconds: 0,
-      },
-      {
-        timestamp: "00:07",
-        text: "In the past, people write letters, but now we use smartphones to chat everywhere...",
-        seconds: 7,
-      },
-      {
-        timestamp: "00:15",
-        text: "...which is very faster and easy for people keep in touch with families.",
-        seconds: 15,
-      },
-      {
-        timestamp: "00:23",
-        text: "I actually believe this changes have brought many benefit for society.",
-        seconds: 23,
-      },
-    ],
-  },
-};
-
 export function App() {
   const [config, setConfig] = useState<PublicAppConfig>(defaultPublicConfig);
   const [previewTheme, setPreviewTheme] = useState<ThemeId>(defaultPublicConfig.theme);
@@ -208,10 +114,11 @@ export function App() {
   const [activeMenu, setActiveMenu] = useState<MenuId | null>(null);
   const [menuClock, setMenuClock] = useState("");
   const [records, setRecords] = useState<CorrectionRecord[]>([]);
+  const [corpusOpen, setCorpusOpen] = useState(false);
   const [activeRecordId, setActiveRecordId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [workspaceError, setWorkspaceError] = useState<AppError | null>(null);
-  const [pendingMediaFileName, setPendingMediaFileName] = useState("");
+  const [pendingMediaPath, setPendingMediaPath] = useState("");
   const userSelectedThemeRef = useRef(false);
   const previewConfig = useMemo<PublicAppConfig>(
     () => ({ ...config, theme: previewTheme, typography: previewTypography }),
@@ -230,7 +137,15 @@ export function App() {
   }, [previewTheme]);
 
   useEffect(() => {
-    Promise.all([getAppConfig(), invokeCommand<HealthCheckResult>("health_check")])
+    const healthCheckPromise = isTauriRuntimeAvailable()
+      ? invokeCommand<HealthCheckResult>("health_check")
+      : Promise.resolve<HealthCheckResult>({
+          ok: true,
+          version: "browser-preview",
+          platform: "browser",
+        });
+
+    Promise.all([getAppConfig(), healthCheckPromise])
       .then(([appConfig, healthCheck]) => {
         setConfig(appConfig);
         if (!userSelectedThemeRef.current) {
@@ -250,17 +165,22 @@ export function App() {
     if (storedRecords) {
       try {
         const parsedRecords = JSON.parse(storedRecords) as CorrectionRecord[];
-        setRecords(parsedRecords);
-        setActiveRecordId(parsedRecords[0]?.id ?? null);
+        const realRecords = parsedRecords.filter((record) => record.id !== "demo-assignment-technology");
+        setRecords(realRecords);
+        setActiveRecordId(realRecords[0]?.id ?? null);
+        if (realRecords.length) {
+          window.localStorage.setItem(recordsStorageKey, JSON.stringify(realRecords));
+        } else {
+          window.localStorage.removeItem(recordsStorageKey);
+        }
         return;
       } catch {
         window.localStorage.removeItem(recordsStorageKey);
       }
     }
 
-    setRecords([demoRecord]);
-    setActiveRecordId(demoRecord.id);
-    window.localStorage.setItem(recordsStorageKey, JSON.stringify([demoRecord]));
+    setRecords([]);
+    setActiveRecordId(null);
   }, []);
 
   useEffect(() => {
@@ -306,7 +226,11 @@ export function App() {
 
   function persistRecords(nextRecords: CorrectionRecord[]) {
     setRecords(nextRecords);
-    window.localStorage.setItem(recordsStorageKey, JSON.stringify(nextRecords));
+    if (nextRecords.length) {
+      window.localStorage.setItem(recordsStorageKey, JSON.stringify(nextRecords));
+    } else {
+      window.localStorage.removeItem(recordsStorageKey);
+    }
   }
 
   function applyConfig(nextConfig: PublicAppConfig) {
@@ -339,9 +263,10 @@ export function App() {
 
   function resetWorkspace() {
     setActiveRecordId(null);
-    setPendingMediaFileName("");
+    setPendingMediaPath("");
     setWorkspaceError(null);
     setActiveMenu(null);
+    setCorpusOpen(false);
   }
 
   function deleteRecord(recordId: string, event: React.MouseEvent) {
@@ -364,7 +289,7 @@ export function App() {
       title: title || "口语自主练习作业",
       date: formatRecordDate(now),
       fileName,
-      duration: "00:45",
+      duration: result.speechAssessment ? formatDuration(result.speechAssessment.durationMs / 1000) : "00:45",
       transcript: result.transcript,
       result,
     };
@@ -376,12 +301,13 @@ export function App() {
   async function importMediaFromMenu() {
     setActiveMenu(null);
     setActiveRecordId(null);
+    setCorpusOpen(false);
     setWorkspaceError(null);
 
     try {
       const selectedPath = await selectMediaFile();
       if (selectedPath) {
-        setPendingMediaFileName(selectedPath.split(/[\\/]/).pop() ?? selectedPath);
+        setPendingMediaPath(selectedPath);
       }
     } catch (error) {
       setWorkspaceError(error as AppError);
@@ -413,7 +339,7 @@ export function App() {
         ragExamples: [],
       });
       addRecord(input.title, input.fileName, mapGradeResultToWorkspaceResult(gradeResult, input.answer));
-      setPendingMediaFileName("");
+      setPendingMediaPath("");
     } catch (error) {
       setWorkspaceError(error as AppError);
     } finally {
@@ -473,9 +399,17 @@ export function App() {
                 records={records}
                 activeRecordId={activeRecordId}
                 currentTheme={referenceTheme}
-                onSelectRecord={setActiveRecordId}
+                corpusOpen={corpusOpen}
+                onSelectRecord={(recordId) => {
+                  setCorpusOpen(false);
+                  setActiveRecordId(recordId);
+                }}
                 onDeleteRecord={deleteRecord}
                 onNewSession={resetWorkspace}
+                onOpenCorpus={() => {
+                  setCorpusOpen(true);
+                  setActiveRecordId(null);
+                }}
               />
             </aside>
 
@@ -486,16 +420,21 @@ export function App() {
                 </div>
               ) : null}
 
-              <Workspace
-                activeRecord={activeRecord}
-                config={previewConfig}
-                currentTheme={referenceTheme}
-                isLoading={loading}
-                pendingMediaFileName={pendingMediaFileName}
-                serviceReady={Boolean(health)}
-                onClearPendingMedia={() => setPendingMediaFileName("")}
-                onSubmitText={submitTextForGrading}
-              />
+              {corpusOpen ? (
+                <CorpusPage />
+              ) : (
+                <Workspace
+                  activeRecord={activeRecord}
+                  config={previewConfig}
+                  currentTheme={referenceTheme}
+                  isLoading={loading}
+                  pendingMediaPath={pendingMediaPath}
+                  serviceReady={Boolean(health)}
+                  onClearPendingMedia={() => setPendingMediaPath("")}
+                  onAddRecord={addRecord}
+                  onSubmitText={submitTextForGrading}
+                />
+              )}
             </main>
           </div>
 
@@ -636,16 +575,20 @@ function HistorySidebar({
   records,
   activeRecordId,
   currentTheme,
+  corpusOpen,
   onSelectRecord,
   onDeleteRecord,
   onNewSession,
+  onOpenCorpus,
 }: {
   records: CorrectionRecord[];
   activeRecordId: string | null;
   currentTheme: ReferenceTheme;
+  corpusOpen: boolean;
   onSelectRecord: (recordId: string) => void;
   onDeleteRecord: (recordId: string, event: React.MouseEvent) => void;
   onNewSession: () => void;
+  onOpenCorpus: () => void;
 }) {
   return (
     <div className="flex h-full w-full flex-col justify-between p-3">
@@ -659,11 +602,25 @@ function HistorySidebar({
         </div>
 
         <div className="space-y-1">
+          <button
+            type="button"
+            onClick={onOpenCorpus}
+            className={`history-row group ${corpusOpen ? `history-row-active history-row-active-${currentTheme}` : ""}`}
+          >
+            <div className="flex min-w-0 flex-1 items-start gap-2.5">
+              <Database size={14} className="mt-0.5 shrink-0 opacity-70" />
+              <div className="min-w-0 flex-1 text-left leading-snug">
+                <p className="truncate text-[11px] font-semibold">教师案例库</p>
+                <p className="mt-0.5 text-[10px] opacity-50">SQLite CRUD 基础</p>
+              </div>
+            </div>
+          </button>
+
           {records.length === 0 ? (
             <div className="flex flex-col items-center justify-center space-y-1 px-4 py-8 text-center text-[10px] opacity-40">
               <HardDrive size={24} className="mb-1 stroke-1" />
               <span>暂无历史口语作业</span>
-              <span>开始录音或上传文件以批改</span>
+              <span>录入文本批改后会保存记录</span>
             </div>
           ) : (
             records.map((record) => {
@@ -729,18 +686,20 @@ function Workspace({
   config,
   currentTheme,
   isLoading,
-  pendingMediaFileName,
+  pendingMediaPath,
   serviceReady,
   onClearPendingMedia,
+  onAddRecord,
   onSubmitText,
 }: {
   activeRecord: CorrectionRecord | null;
   config: PublicAppConfig;
   currentTheme: ReferenceTheme;
   isLoading: boolean;
-  pendingMediaFileName: string;
+  pendingMediaPath: string;
   serviceReady: boolean;
   onClearPendingMedia: () => void;
+  onAddRecord: (title: string, fileName: string, result: WorkspaceResult) => void;
   onSubmitText: (input: {
     answer: string;
     part: SpeakingPart;
@@ -749,13 +708,19 @@ function Workspace({
     fileName: string;
   }) => Promise<void>;
 }) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [inputMode, setInputMode] = useState<InputMode>("media");
   const [customTitle, setCustomTitle] = useState("");
   const [question, setQuestion] = useState("Describe a happy event in your childhood");
   const [part, setPart] = useState<SpeakingPart>("part2");
   const [textInput, setTextInput] = useState("");
-  const [playerAudioUrl, setPlayerAudioUrl] = useState<string | null>(null);
+  const [mediaPath, setMediaPath] = useState("");
+  const [mediaMetadata, setMediaMetadata] = useState<MediaMetadata | null>(null);
+  const [mediaTranscodeResult, setMediaTranscodeResult] = useState<MediaTranscodeResult | null>(null);
+  const [speechAssessmentResult, setSpeechAssessmentResult] = useState<SpeechAssessmentResult | null>(null);
+  const [mediaBusy, setMediaBusy] = useState(false);
+  const [mediaPreviewOnly, setMediaPreviewOnly] = useState(false);
+  const [mediaNotice, setMediaNotice] = useState<string | null>(null);
+  const [mediaError, setMediaError] = useState<AppError | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -763,15 +728,17 @@ function Workspace({
   const [resultSelectorOpen, setResultSelectorOpen] = useState(false);
   const [resultSelectorDismissed, setResultSelectorDismissed] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const browserFileInputRef = useRef<HTMLInputElement | null>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const activeWordTokenIdRef = useRef<string | null>(null);
+  const wordTokenElementRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const resultSelectorHoverTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (pendingMediaFileName) {
-      setInputMode("media");
+    if (pendingMediaPath) {
+      void loadMediaPath(pendingMediaPath);
     }
-  }, [pendingMediaFileName]);
+  }, [pendingMediaPath]);
 
   useEffect(() => {
     if (activeRecord) {
@@ -796,9 +763,16 @@ function Workspace({
   const secondaryClass = getSecondaryButtonClass(currentTheme);
   const displayedResult = activeRecord?.result ?? null;
   const displayedTranscript = displayedResult?.transcript ?? activeRecord?.transcript ?? [];
+  const displayedTranscriptTokens = displayedResult?.transcriptTokens ?? [];
   const displayedTitle = activeRecord?.title ?? "雅思口语作业批改";
   const answerLength = textInput.trim().length;
   const canSubmitText = serviceReady && config.deepseek.apiKeyConfigured && answerLength >= 20 && !isLoading;
+  const mediaPlayerUrl = useMemo(
+    () => (mediaTranscodeResult ? convertFileSrc(mediaTranscodeResult.outputPath) : null),
+    [mediaTranscodeResult],
+  );
+  const canStartMediaCorrection =
+    Boolean(mediaPath.trim()) && Boolean(mediaMetadata?.supported) && !mediaBusy && !mediaPreviewOnly;
   const resultTabOptions = displayedResult
     ? [
         { id: "overall" as const, name: "综合批语" },
@@ -811,21 +785,163 @@ function Workspace({
     : [];
   const activeResultTabName = resultTabOptions.find((tabOption) => tabOption.id === activeTab)?.name ?? "综合批语";
 
-  function handleFile(file: File) {
-    const isMedia =
-      file.type.startsWith("audio/") ||
-      file.type.startsWith("video/") ||
-      /\.(mp3|wav|ogg|m4a|webm|mp4|mov)$/i.test(file.name);
-    if (!isMedia) {
-      window.alert("请上传音频文件(MP3/WAV/M4A)或视频文件(MP4/MOV)来进行口语听写批改。");
+  async function chooseMediaFileFromDialog() {
+    setInputMode("media");
+    setMediaError(null);
+    setMediaNotice(null);
+    if (!isTauriRuntimeAvailable()) {
+      browserFileInputRef.current?.click();
       return;
     }
 
-    setSelectedFile(file);
+    try {
+      const selectedPath = await selectMediaFile();
+      if (selectedPath) {
+        await loadMediaPath(selectedPath);
+      }
+    } catch (error) {
+      setMediaError(error as AppError);
+    }
+  }
+
+  async function loadMediaPath(nextMediaPath: string) {
+    const normalizedMediaPath = nextMediaPath.trim();
     setInputMode("media");
-    setPlayerAudioUrl(URL.createObjectURL(file));
+    setMediaPath(normalizedMediaPath);
+    setMediaTranscodeResult(null);
+    setSpeechAssessmentResult(null);
+    setMediaPreviewOnly(false);
+    setMediaNotice(null);
     setIsPlaying(false);
     setCurrentTime(0);
+    setAudioDuration(0);
+
+    if (!normalizedMediaPath) {
+      setMediaMetadata(null);
+      setMediaNotice(null);
+      setMediaError({
+        code: "MEDIA_PATH_EMPTY",
+        message: "请先选择或拖入一个媒体文件。",
+      });
+      return;
+    }
+
+    setMediaBusy(true);
+    setMediaError(null);
+    try {
+      const nextMetadata = await getMediaMetadata(normalizedMediaPath);
+      setMediaMetadata(nextMetadata);
+      if (!nextMetadata.supported) {
+        setMediaError({
+          code: "MEDIA_UNSUPPORTED_TYPE",
+          message: "仅支持 MP4、MP3、M4A 和 WAV 文件。",
+        });
+      }
+    } catch (error) {
+      setMediaMetadata(null);
+      setMediaNotice(null);
+      setMediaError(error as AppError);
+    } finally {
+      setMediaBusy(false);
+    }
+  }
+
+  async function startMediaAiCorrection() {
+    const normalizedMediaPath = mediaPath.trim();
+    if (!normalizedMediaPath || !mediaMetadata?.supported) {
+      return;
+    }
+
+    setMediaBusy(true);
+    setMediaNotice(null);
+    setMediaError(null);
+    setMediaTranscodeResult(null);
+    setSpeechAssessmentResult(null);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setAudioDuration(0);
+    try {
+      const nextResult = await transcodeMedia({ inputPath: normalizedMediaPath });
+      setMediaTranscodeResult(nextResult);
+      setMediaMetadata(await getMediaMetadata(normalizedMediaPath));
+      setMediaNotice("音视频已转码为标准 WAV，正在提交 Azure 进行长音频发音评估。");
+      const azureConfigValidationResult = await validateAzureConfig();
+      if (!azureConfigValidationResult.ok) {
+        setMediaNotice(null);
+        setMediaError({
+          code: "AZURE_CONFIG_INVALID",
+          message: azureConfigValidationResult.message,
+        });
+        return;
+      }
+
+      const nextSpeechAssessmentResult = await assessPronunciation({
+        wavPath: nextResult.outputPath,
+        referenceText: question.trim() || undefined,
+      });
+      setSpeechAssessmentResult(nextSpeechAssessmentResult);
+      const workspaceResult = mapSpeechAssessmentToWorkspaceResult(nextSpeechAssessmentResult);
+      onAddRecord(
+        customTitle.trim() || question.trim() || getFileNameFromPath(normalizedMediaPath).replace(/\.[^/.]+$/, ""),
+        mediaMetadata?.fileName ?? getFileNameFromPath(normalizedMediaPath),
+        workspaceResult,
+      );
+      setMediaNotice("Azure 长音频发音评估完成，已生成真实 transcript 和发音报告。");
+    } catch (error) {
+      setMediaError(error as AppError);
+    } finally {
+      setMediaBusy(false);
+    }
+  }
+
+  function handleDroppedFile(file: File) {
+    const droppedPath = getLocalFilePath(file);
+    if (!droppedPath) {
+      if (!isTauriRuntimeAvailable()) {
+        loadBrowserPreviewFile(file);
+      } else {
+        setMediaNotice(null);
+        setMediaError({
+          code: "MEDIA_DROP_PATH_UNAVAILABLE",
+          message: "无法从拖拽文件读取本地路径，请使用“手动浏览文件”按钮。",
+        });
+      }
+      return;
+    }
+
+    void loadMediaPath(droppedPath);
+  }
+
+  function loadBrowserPreviewFile(file: File) {
+    const extension = getFileExtension(file.name);
+    const supported = isSupportedMediaExtension(extension);
+    setInputMode("media");
+    setMediaPath(file.name);
+    setMediaMetadata({
+      path: file.name,
+      fileName: file.name,
+      extension,
+      sizeBytes: file.size,
+      supported,
+    });
+    setMediaTranscodeResult(null);
+    setSpeechAssessmentResult(null);
+    setMediaPreviewOnly(true);
+    setMediaBusy(false);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setAudioDuration(0);
+
+    if (supported) {
+      setMediaError(null);
+      setMediaNotice("网页预览已读取文件信息；真实 FFmpeg 转码需要在 Tauri 桌面端运行。");
+    } else {
+      setMediaNotice(null);
+      setMediaError({
+        code: "MEDIA_UNSUPPORTED_TYPE",
+        message: "仅支持 MP4、MP3、M4A 和 WAV 文件。",
+      });
+    }
   }
 
   function openResultSelectorAfterDelay() {
@@ -859,14 +975,17 @@ function Workspace({
     setResultSelectorDismissed(true);
   }
 
-  function clearSelectedFile() {
-    setSelectedFile(null);
-    setPlayerAudioUrl(null);
+  function clearSelectedMedia() {
+    setMediaPath("");
+    setMediaMetadata(null);
+    setMediaTranscodeResult(null);
+    setSpeechAssessmentResult(null);
+    setMediaPreviewOnly(false);
+    setMediaNotice(null);
+    setMediaError(null);
     setIsPlaying(false);
     setCurrentTime(0);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    setAudioDuration(0);
     onClearPendingMedia();
   }
 
@@ -874,12 +993,11 @@ function Workspace({
     const title =
       customTitle.trim() ||
       question.trim() ||
-      selectedFile?.name.replace(/\.[^/.]+$/, "") ||
-      pendingMediaFileName.replace(/\.[^/.]+$/, "") ||
+      (mediaMetadata?.fileName ?? getFileNameFromPath(mediaPath)).replace(/\.[^/.]+$/, "") ||
       "IELTS 口语练习";
 
     if (inputMode === "media") {
-      window.alert("当前项目的真实后端已接入文本批改与媒体转码。请先切换到“手工手写文本”提交 DeepSeek 批改；音视频评估链路后续接入 Azure 后可在此处直接提交。");
+      await startMediaAiCorrection();
       return;
     }
 
@@ -923,6 +1041,21 @@ function Workspace({
   }
 
   const currentScoreData = getScoreData(displayedResult, activeTab);
+  const currentWordToken = findCurrentWordToken(displayedTranscriptTokens, currentTime);
+
+  useEffect(() => {
+    const previousActiveWordTokenId = activeWordTokenIdRef.current;
+    if (previousActiveWordTokenId) {
+      wordTokenElementRefs.current[previousActiveWordTokenId]?.classList.remove("transcript-word-active");
+    }
+
+    if (currentWordToken?.type === "word") {
+      wordTokenElementRefs.current[currentWordToken.id]?.classList.add("transcript-word-active");
+      activeWordTokenIdRef.current = currentWordToken.id;
+    } else {
+      activeWordTokenIdRef.current = null;
+    }
+  }, [currentWordToken?.id]);
 
   return (
     <div className="flex min-h-full w-full flex-col space-y-4 min-[1180px]:h-full">
@@ -930,7 +1063,7 @@ function Workspace({
         <div className="flex flex-col space-y-4 min-[1180px]:col-span-5 min-[1180px]:min-h-0">
           <div className="flex min-h-8 flex-wrap items-center justify-between gap-3">
             <h3 className="flex items-center gap-1 text-xs font-bold uppercase tracking-tight opacity-70">
-              <span>作业上传及录制</span>
+              <span>作业导入与文本批改</span>
             </h3>
             <div className="flex rounded-lg bg-current/5 p-0.5 text-[10px]">
               <button
@@ -1014,58 +1147,111 @@ function Workspace({
                       setDragging(false);
                       const file = event.dataTransfer.files.item(0);
                       if (file) {
-                        handleFile(file);
+                        handleDroppedFile(file);
                       }
                     }}
-                    onClick={() => fileInputRef.current?.click()}
-                    className="workspace-file-dropzone flex cursor-pointer flex-col items-center justify-center space-y-2 rounded-xl border-2 border-dashed border-current/20 bg-current/[0.01] p-6 text-center transition hover:border-current/40"
+                    className="workspace-file-dropzone flex flex-col items-center justify-center space-y-2 rounded-xl border-2 border-dashed border-current/20 bg-current/[0.01] p-6 text-center transition hover:border-current/40"
                   >
-                    <Upload size={28} className="opacity-60" />
-                    <div>
-                      <p className="text-xs font-semibold">拖拽音频或视频文件至此处</p>
-                      <p className="mt-1 text-[10px] opacity-50">支持 MP3, WAV, M4A, MP4 等格式</p>
-                    </div>
-                    <button type="button" className={`rounded px-2 py-1 text-[10px] font-bold ${secondaryClass}`}>
-                      手动浏览文件
-                    </button>
+                    {mediaPath ? (
+                      <div className="flex w-full max-w-md flex-col items-center gap-4">
+                        <div className="flex w-full items-center justify-between gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-left">
+                          <div className="flex min-w-0 items-center gap-3">
+                            {isVideoPath(mediaMetadata?.fileName ?? mediaPath) ? (
+                              <FileVideo size={22} className="shrink-0 text-emerald-500" />
+                            ) : (
+                              <FileAudio size={22} className="shrink-0 text-emerald-500" />
+                            )}
+                            <div className="min-w-0 leading-tight">
+                              <p className="truncate text-sm font-bold text-emerald-600">
+                                {mediaMetadata?.fileName ?? getFileNameFromPath(mediaPath)}
+                              </p>
+                              <p className="mt-1 text-[10px] opacity-60">
+                                {mediaMetadata
+                                  ? `${formatBytes(mediaMetadata.sizeBytes)} / ${mediaMetadata.supported ? "格式可转码" : "格式不支持"}`
+                                  : mediaBusy
+                                    ? "正在读取文件信息"
+                                    : "等待检查文件信息"}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={clearSelectedMedia}
+                            className="shrink-0 rounded bg-red-100 px-2.5 py-1 text-[10px] font-bold text-red-600 hover:bg-red-200"
+                          >
+                            清空
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void chooseMediaFileFromDialog()}
+                          disabled={mediaBusy}
+                          className={`rounded px-2 py-1 text-[10px] font-bold disabled:opacity-50 ${secondaryClass}`}
+                        >
+                          更换文件
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload size={28} className="opacity-60" />
+                        <div>
+                          <p className="text-xs font-semibold">拖拽音频或视频文件至此处</p>
+                          <p className="mt-1 text-[10px] opacity-50">支持 MP4, MP3, M4A, WAV；转码为 16kHz 16bit mono PCM</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void chooseMediaFileFromDialog()}
+                          disabled={mediaBusy}
+                          className={`rounded px-2 py-1 text-[10px] font-bold disabled:opacity-50 ${secondaryClass}`}
+                        >
+                          手动浏览文件
+                        </button>
+                      </>
+                    )}
                     <input
-                      ref={fileInputRef}
+                      ref={browserFileInputRef}
                       type="file"
-                      accept="audio/*,video/*"
-                      onChange={(event) => {
-                        const file = event.target.files?.item(0);
-                        if (file) {
-                          handleFile(file);
-                        }
-                      }}
+                      accept=".mp4,.mp3,.m4a,.wav,audio/mp4,audio/mpeg,audio/wav,video/mp4"
                       className="hidden"
+                      onChange={(event) => {
+                        const selectedFile = event.target.files?.item?.(0) ?? event.target.files?.[0];
+                        if (selectedFile) {
+                          loadBrowserPreviewFile(selectedFile);
+                        }
+                        event.currentTarget.value = "";
+                      }}
                     />
                   </div>
 
-                  {selectedFile || pendingMediaFileName ? (
-                    <div className="flex items-center justify-between rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-2.5">
-                      <div className="flex min-w-0 items-center gap-2">
-                        {selectedFile?.type.startsWith("video/") ? (
-                          <FileVideo size={16} className="shrink-0 text-emerald-500" />
-                        ) : (
-                          <FileAudio size={16} className="shrink-0 text-emerald-500" />
-                        )}
-                        <div className="min-w-0 leading-tight">
-                          <p className="truncate text-xs font-bold text-emerald-600">
-                            {selectedFile?.name ?? pendingMediaFileName}
-                          </p>
-                          <p className="text-[9px] opacity-60">
-                            {selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : "来自菜单导入"}
-                          </p>
-                        </div>
+                  {mediaTranscodeResult ? (
+                    <div className="space-y-2 rounded-lg border border-current/10 bg-current/[0.02] p-3 text-[10px] leading-4">
+                      <div className="font-bold text-emerald-600">转码完成</div>
+                      <div className="break-all opacity-70">输出路径：{mediaTranscodeResult.outputPath}</div>
+                      <div className="opacity-70">
+                        格式：WAV / {mediaTranscodeResult.sampleRate} Hz / {mediaTranscodeResult.channels} channel / {mediaTranscodeResult.codec}
                       </div>
-                      <button
-                        type="button"
-                        onClick={clearSelectedFile}
-                        className="rounded bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600 hover:bg-red-200"
-                      >
-                        清空
-                      </button>
+                    </div>
+                  ) : null}
+
+                  {speechAssessmentResult ? (
+                    <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-[10px] leading-4 text-emerald-700">
+                      <div className="font-bold">Azure 语音评估完成</div>
+                      <div className="mt-1 opacity-80">
+                        Pronunciation {formatOptionalScore(speechAssessmentResult.overall.pronunciationScore)} / Accuracy{" "}
+                        {formatOptionalScore(speechAssessmentResult.overall.accuracyScore)}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {mediaNotice ? (
+                    <div className="rounded-lg border border-current/10 bg-current/[0.04] p-2.5 text-[10px] font-semibold leading-4 opacity-70">
+                      {mediaNotice}
+                    </div>
+                  ) : null}
+
+                  {mediaError ? (
+                    <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-2.5 text-[10px] font-semibold leading-4 text-red-600">
+                      {mediaError.message}
                     </div>
                   ) : null}
                 </div>
@@ -1089,15 +1275,42 @@ function Workspace({
               <button
                 type="button"
                 onClick={() => void submitCorrection()}
-                disabled={isLoading || (inputMode === "text" && !canSubmitText)}
+                disabled={inputMode === "text" ? isLoading || !canSubmitText : mediaBusy || !canStartMediaCorrection}
                 className={`flex w-full items-center justify-center gap-1.5 rounded py-2.5 text-xs font-bold shadow-md transition disabled:opacity-50 ${accentClass}`}
               >
-                <Sparkles size={14} className={isLoading ? "animate-spin" : ""} />
-                <span>{isLoading ? "考官 AI 精审分析中..." : "开始大模型 AI 听写批改"}</span>
+                {inputMode === "media" && mediaBusy ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : inputMode === "media" ? (
+                  <FileAudio size={14} />
+                ) : (
+                  <Sparkles size={14} className={isLoading ? "animate-spin" : ""} />
+                )}
+                <span>
+                  {inputMode === "media"
+                    ? mediaBusy
+                      ? mediaTranscodeResult
+                        ? "Azure 发音评估中..."
+                        : "转码中..."
+                      : "开始 AI 作业批改"
+                    : isLoading
+                      ? "考官 AI 精审分析中..."
+                      : "开始 DeepSeek 文本批改"}
+                </span>
               </button>
               {inputMode === "text" && !canSubmitText ? (
                 <p className="mt-2 text-[10px] leading-4 opacity-55">
                   {!serviceReady ? "本地服务未连接。" : !config.deepseek.apiKeyConfigured ? "请先配置 DeepSeek Key。" : "请输入至少 20 字符。"}
+                </p>
+              ) : null}
+              {inputMode === "media" && !canStartMediaCorrection ? (
+                <p className="mt-2 text-[10px] leading-4 opacity-55">
+                  {!mediaPath
+                    ? "请先选择或拖入 MP4、MP3、M4A、WAV 文件。"
+                    : mediaPreviewOnly
+                      ? "网页预览只能读取文件信息；真实转码请使用 Tauri 桌面端。"
+                      : mediaMetadata && !mediaMetadata.supported
+                        ? "当前格式不支持转码。"
+                        : "请等待文件检查完成。"}
                 </p>
               ) : null}
             </div>
@@ -1107,7 +1320,7 @@ function Workspace({
         <div className="flex flex-col space-y-4 min-[1180px]:col-span-7 min-[1180px]:min-h-0">
           <div className="flex min-h-8 items-center justify-between">
             <h3 className="flex min-w-0 items-center gap-1.5 text-xs font-bold uppercase tracking-tight opacity-70">
-              <span className="truncate">口语听写批改工作区 - {displayedTitle}</span>
+              <span className="truncate">口语批改工作区 - {displayedTitle}</span>
             </h3>
           </div>
 
@@ -1119,14 +1332,65 @@ function Workspace({
               <div className="max-w-md space-y-2">
                 <h4 className="text-sm font-bold tracking-tight">等待上传雅思口语作业</h4>
                 <p className="text-xs leading-relaxed opacity-60">
-                  左侧菜单会沉淀您的批改档案。上传本地语料或录入文本后，可在此处查看四项评分、逐句修正和高分重构。
+                  左侧菜单会沉淀真实批改档案。导入媒体后会完成标准 WAV 转码和 Azure 长音频发音评估；录入文本后可查看四项评分、词汇修正和高分重构。
                 </p>
                 <div className="grid grid-cols-3 gap-2 pt-4">
-                  <GuideCard title="1. 听写与时间戳" text="逐句语料，点击可定位音频。" />
-                  <GuideCard title="2. 考官四分细则" text="F&C, LR, GRA, P 诊断。" />
-                  <GuideCard title="3. 句级瑕疵修正" text="病句抽取与高分升级。" />
+                  <GuideCard title="1. 媒体转码" text="输出 16kHz 单声道 WAV。" />
+                  <GuideCard title="2. Azure 发音评估" text="逐词评分与停顿。" />
+                  <GuideCard title="3. 播放同步" text="点击词跳转音频。" />
                 </div>
               </div>
+              {mediaPlayerUrl ? (
+                <div className="w-full max-w-xl rounded-xl border border-current/10 bg-current/[0.02] p-3 text-left">
+                  <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={togglePlayback}
+                        className={`shrink-0 rounded-full p-2.5 text-white ${accentClass}`}
+                      >
+                        {isPlaying ? <Pause size={14} /> : <Play size={14} fill="currentColor" />}
+                      </button>
+                      <div className="leading-tight">
+                        <p className="max-w-[260px] truncate text-[11px] font-bold">转码 WAV 播放器</p>
+                        <p className="text-[10px] opacity-50">当前播放的是 FFmpeg 输出的标准 WAV 文件。</p>
+                      </div>
+                    </div>
+                    <div className="flex max-w-md flex-1 items-center gap-2">
+                      <span className="font-mono text-[10px] tabular-nums opacity-50">
+                        {formatDuration(currentTime)}
+                      </span>
+                      <input
+                        type="range"
+                        min="0"
+                        max={audioDuration || 60}
+                        step="0.1"
+                        value={currentTime}
+                        onChange={(event) => {
+                          const seconds = Number(event.target.value);
+                          setCurrentTime(seconds);
+                          if (audioPlayerRef.current) {
+                            audioPlayerRef.current.currentTime = seconds;
+                          }
+                        }}
+                        className="w-full accent-current"
+                      />
+                      <span className="font-mono text-[10px] tabular-nums opacity-50">
+                        {formatDuration(audioDuration || 60)}
+                      </span>
+                    </div>
+                    <audio
+                      ref={audioPlayerRef}
+                      src={mediaPlayerUrl}
+                      onTimeUpdate={() => setCurrentTime(audioPlayerRef.current?.currentTime ?? 0)}
+                      onLoadedMetadata={() => setAudioDuration(audioPlayerRef.current?.duration ?? 0)}
+                      onEnded={() => setIsPlaying(false)}
+                    >
+                      <track kind="captions" />
+                    </audio>
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className="flex flex-col space-y-4 min-[1180px]:min-h-0 min-[1180px]:flex-1">
@@ -1210,7 +1474,19 @@ function Workspace({
                       <p className="whitespace-pre-line leading-relaxed">{displayedResult.generalFeedback}</p>
                     </div>
 
-                    {displayedTranscript.length > 0 ? (
+                    {displayedTranscriptTokens.length > 0 ? (
+                      <div className="border-t border-current/10 pt-4">
+                        <span className="mb-2 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider opacity-50">
+                          <CheckCircle2 size={12} className={currentTheme === "claude" ? "text-[#F27D26]" : "text-emerald-500"} />
+                          <span>逐词 transcript 与播放同步 (点击单词跳转)</span>
+                        </span>
+                        <TranscriptTokenPanel
+                          tokens={displayedTranscriptTokens}
+                          wordTokenElementRefs={wordTokenElementRefs}
+                          onJumpToTimestamp={jumpToTimestamp}
+                        />
+                      </div>
+                    ) : displayedTranscript.length > 0 ? (
                       <div className="border-t border-current/10 pt-4">
                         <span className="mb-2 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider opacity-50">
                           <CheckCircle2 size={12} className={currentTheme === "claude" ? "text-[#F27D26]" : "text-emerald-500"} />
@@ -1256,7 +1532,7 @@ function Workspace({
                 ) : null}
               </div>
 
-              {playerAudioUrl ? (
+              {mediaPlayerUrl ? (
                 <div className={`${cardClass} shrink-0 p-3`}>
                   <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
                     <div className="flex items-center gap-2.5">
@@ -1269,7 +1545,7 @@ function Workspace({
                       </button>
                       <div className="leading-tight">
                         <p className="max-w-[200px] truncate text-[11px] font-bold">口语练习音频播放器</p>
-                        <p className="text-[10px] opacity-50">点击听写区的时间标记可以直接跳转试听</p>
+                        <p className="text-[10px] opacity-50">播放转码后的 WAV 文件；Azure continuous mode 评估结果可点击词级 transcript 回听。</p>
                       </div>
                     </div>
                     <div className="flex max-w-md flex-1 items-center gap-2">
@@ -1297,7 +1573,7 @@ function Workspace({
                     </div>
                     <audio
                       ref={audioPlayerRef}
-                      src={playerAudioUrl}
+                      src={mediaPlayerUrl}
                       onTimeUpdate={() => setCurrentTime(audioPlayerRef.current?.currentTime ?? 0)}
                       onLoadedMetadata={() => setAudioDuration(audioPlayerRef.current?.duration ?? 0)}
                       onEnded={() => setIsPlaying(false)}
@@ -1407,6 +1683,53 @@ function CorrectionsPanel({ corrections }: { corrections: SentenceCorrection[] }
   );
 }
 
+function TranscriptTokenPanel({
+  tokens,
+  wordTokenElementRefs,
+  onJumpToTimestamp,
+}: {
+  tokens: TranscriptToken[];
+  wordTokenElementRefs: React.MutableRefObject<Record<string, HTMLButtonElement | null>>;
+  onJumpToTimestamp: (seconds: number) => void;
+}) {
+  return (
+    <div className="max-h-[220px] overflow-y-auto rounded-xl border border-current/10 bg-current/[0.02] p-4 leading-8">
+      {tokens.map((token) => {
+        if (token.type === "pause") {
+          return (
+            <span key={token.id} className="mx-1 rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600">
+              [Pause: {(token.durationMs / 1000).toFixed(1)}s]
+            </span>
+          );
+        }
+
+        const isLowAccuracy = token.accuracyScore !== undefined && token.accuracyScore < lowAccuracyThreshold;
+        const tooltipParts = [
+          token.accuracyScore === undefined ? "" : `Accuracy: ${token.accuracyScore.toFixed(1)}`,
+          ...(token.phonemeErrors ?? []),
+        ].filter(Boolean);
+
+        return (
+          <button
+            key={token.id}
+            ref={(element) => {
+              wordTokenElementRefs.current[token.id] = element;
+            }}
+            type="button"
+            title={tooltipParts.join("\n")}
+            onClick={() => onJumpToTimestamp(token.startMs / 1000)}
+            className={`transcript-word mx-0.5 rounded px-1 py-0.5 transition hover:bg-current/10 ${
+              isLowAccuracy ? "text-red-600 underline decoration-red-500 decoration-2 underline-offset-4" : ""
+            }`}
+          >
+            {token.text}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function HelpModal({ currentTheme, onClose }: { currentTheme: ReferenceTheme; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-[2147483001] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
@@ -1421,7 +1744,7 @@ function HelpModal({ currentTheme, onClose }: { currentTheme: ReferenceTheme; on
         <div className="space-y-3 text-left leading-relaxed opacity-90">
           <p>本界面严格采用参考项目的 macOS 工作台结构：菜单栏、历史侧栏、双栏工作区、报告 tabs 和底部状态栏。</p>
           <p>文件菜单可新建会话或导入音视频，主题切换可在 Claude、动物森友会和液态玻璃之间即时预览。</p>
-          <p>当前真实可用链路为 DeepSeek 文本批改；音视频上传区保留同款交互位，后续可接 Azure 语音评估。</p>
+          <p>当前可用链路包括 DeepSeek 文本批改、媒体转码和 Azure Speech SDK 长音频发音评估；真实 Azure Key 验证暂缓到人工验收阶段。</p>
         </div>
         <div className="mt-5 flex justify-end border-t border-current/10 pt-3">
           <button type="button" onClick={onClose} className={`rounded px-3.5 py-1.5 text-xs font-semibold ${getAccentButtonClass(currentTheme)}`}>
@@ -1597,6 +1920,75 @@ function mapGradeResultToWorkspaceResult(result: GradeResult, transcriptText: st
   };
 }
 
+function mapSpeechAssessmentToWorkspaceResult(result: SpeechAssessmentResult): WorkspaceResult {
+  const transcriptText = getTranscriptText(result);
+  const transcript = splitTextIntoTranscript(transcriptText);
+  const transcriptTokens = buildTranscriptTokens(result.words);
+  const pronunciationScore = normalizeAzureScoreToBand(result.overall.pronunciationScore);
+  const fluencyScore = normalizeAzureScoreToBand(result.overall.fluencyScore);
+  const accuracyScore = normalizeAzureScoreToBand(result.overall.accuracyScore);
+  const completenessScore = normalizeAzureScoreToBand(result.overall.completenessScore);
+  const lowAccuracyWords = result.words
+    .filter((word) => word.accuracyScore !== undefined && word.accuracyScore < lowAccuracyThreshold)
+    .slice(0, 8);
+
+  return {
+    overallScore: pronunciationScore,
+    fluencyScore: {
+      score: fluencyScore,
+      feedback: `Azure 长音频评估已完成。Fluency 原始分：${formatOptionalScore(result.overall.fluencyScore)}。`,
+      strengths: ["已基于真实音频生成逐词时间戳", "可结合播放器回听具体停顿和连读"],
+      improvements: ["优先复盘红色停顿标注", "对低分词进行跟读和重录"],
+    },
+    lexicalScore: {
+      score: completenessScore,
+      feedback: `当前媒体链路聚焦发音与流利度；Completeness 原始分：${formatOptionalScore(result.overall.completenessScore)}。`,
+      strengths: ["语音内容已被 Azure 识别为 transcript", "可将 transcript 复制到文本批改链路继续做词句升级"],
+      improvements: ["如需词汇和语法细评，请使用手工文本模式提交 transcript", "补充题目上下文能帮助后续综合批改"],
+    },
+    grammarScore: {
+      score: accuracyScore,
+      feedback: "当前媒体链路不直接做语法诊断；这里使用 Accuracy 作为临时参考分，避免伪造语法结论。",
+      strengths: ["发音准确度已有真实音频依据", "逐词评分可定位高风险词"],
+      improvements: ["语法问题需进入文本批改链路", "复盘 transcript 中的长句和重复表达"],
+    },
+    pronunciationScore: {
+      score: pronunciationScore,
+      feedback: [
+        `Pronunciation 原始分：${formatOptionalScore(result.overall.pronunciationScore)}。`,
+        `Accuracy：${formatOptionalScore(result.overall.accuracyScore)}；Fluency：${formatOptionalScore(result.overall.fluencyScore)}；Prosody：${formatOptionalScore(result.overall.prosodyScore)}。`,
+      ].join("\n"),
+      strengths: ["已完成长音频 continuous assessment", "逐词评分、音素提示和时间戳可用于精听复盘"],
+      improvements: lowAccuracyWords.length
+        ? lowAccuracyWords.map((word) => `${word.word}: ${formatOptionalScore(word.accuracyScore)}`)
+        : ["未发现明显低于 60 分的单词", "继续关注停顿和语调自然度"],
+    },
+    keyCorrections: lowAccuracyWords.map((word) => ({
+      original: word.word,
+      improved: word.word,
+      reason: `Azure 逐词 Accuracy 为 ${formatOptionalScore(word.accuracyScore)}，建议点击 transcript 回听并跟读。`,
+      category: "pronunciation",
+    })),
+    generalFeedback: "Azure 已基于转码后的 WAV 完成长音频发音评估。请在 transcript 中点击低分词或停顿标记附近回听，优先修正影响流利度和发音清晰度的问题。",
+    modelAnswer: transcriptText || "Azure 未返回完整 transcript。",
+    transcript,
+    transcriptTokens,
+    speechAssessment: result,
+  };
+}
+
+function normalizeAzureScoreToBand(score: number | undefined) {
+  if (score === undefined) {
+    return 0;
+  }
+
+  return Number(Math.max(0, Math.min(9, (score / 100) * 9)).toFixed(1));
+}
+
+function formatOptionalScore(score: number | undefined) {
+  return score === undefined ? "--" : score.toFixed(1);
+}
+
 function splitTextIntoTranscript(text: string): TranscriptChunk[] {
   const sentences = text
     .split(/(?<=[.!?。！？])\s+/)
@@ -1608,6 +2000,38 @@ function splitTextIntoTranscript(text: string): TranscriptChunk[] {
     seconds: index * 7,
     text: sentence,
   }));
+}
+
+function getLocalFilePath(file: File) {
+  return (file as File & { path?: string }).path ?? "";
+}
+
+function getFileExtension(path: string) {
+  const fileName = getFileNameFromPath(path);
+  const extension = fileName.includes(".") ? fileName.split(".").pop() : "";
+  return extension?.toLowerCase() ?? "";
+}
+
+function isSupportedMediaExtension(extension: string) {
+  return ["mp4", "mp3", "m4a", "wav"].includes(extension);
+}
+
+function getFileNameFromPath(path: string) {
+  return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+}
+
+function isVideoPath(path: string) {
+  return /\.(mp4|mov|m4v)$/i.test(path);
+}
+
+function formatBytes(value: number) {
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function getSubcategoryName(activeTab: ResultTab) {
@@ -1676,4 +2100,8 @@ function formatDuration(totalSeconds: number) {
   const minutes = `${Math.floor(safeSeconds / 60)}`.padStart(2, "0");
   const seconds = `${safeSeconds % 60}`.padStart(2, "0");
   return `${minutes}:${seconds}`;
+}
+
+function isTauriRuntimeAvailable() {
+  return "__TAURI_INTERNALS__" in window;
 }

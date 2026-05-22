@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MediaPage } from "./MediaPage";
 import { getMediaMetadata, selectMediaFile, transcodeMedia } from "../../lib/media";
+import { assessPronunciation, validateAzureConfig } from "../../lib/speech";
 
 vi.mock("../../lib/media", () => ({
   getMediaMetadata: vi.fn(),
@@ -9,8 +10,19 @@ vi.mock("../../lib/media", () => ({
   transcodeMedia: vi.fn(),
 }));
 
+vi.mock("../../lib/speech", () => ({
+  assessPronunciation: vi.fn(),
+  validateAzureConfig: vi.fn(),
+}));
+
 vi.mock("@tauri-apps/api/core", () => ({
   convertFileSrc: (path: string) => `asset://${path}`,
+}));
+
+vi.mock("@tauri-apps/api/webview", () => ({
+  getCurrentWebview: () => ({
+    onDragDropEvent: vi.fn().mockResolvedValue(vi.fn()),
+  }),
 }));
 
 describe("MediaPage", () => {
@@ -18,6 +30,15 @@ describe("MediaPage", () => {
     vi.mocked(getMediaMetadata).mockReset();
     vi.mocked(selectMediaFile).mockReset();
     vi.mocked(transcodeMedia).mockReset();
+    vi.mocked(assessPronunciation).mockReset();
+    vi.mocked(validateAzureConfig).mockReset();
+    vi.mocked(validateAzureConfig).mockResolvedValue({
+      ok: true,
+      keyConfigured: true,
+      region: "eastasia",
+      language: "en-US",
+      message: "Azure Speech 配置可用。",
+    });
   });
 
   it("loads metadata for a selected media file", async () => {
@@ -76,5 +97,118 @@ describe("MediaPage", () => {
 
     expect(screen.getByText("/Users/test/cache/audio.wav")).toBeInTheDocument();
     expect(transcodeMedia).toHaveBeenCalledWith({ inputPath: "/Users/test/audio.m4a" });
+  });
+
+  it("runs Azure speech assessment after transcode and renders transcript tokens", async () => {
+    vi.mocked(getMediaMetadata).mockResolvedValue({
+      path: "/Users/test/audio.m4a",
+      fileName: "audio.m4a",
+      extension: "m4a",
+      sizeBytes: 4096,
+      supported: true,
+    });
+    vi.mocked(transcodeMedia).mockResolvedValue({
+      inputPath: "/Users/test/audio.m4a",
+      outputPath: "/Users/test/cache/audio.wav",
+      format: "wav",
+      sampleRate: 16000,
+      channels: 1,
+      codec: "pcm_s16le",
+      logSummary: "transcoded",
+    });
+    vi.mocked(assessPronunciation).mockResolvedValue({
+      overall: {
+        pronunciationScore: 84,
+        accuracyScore: 86,
+        fluencyScore: 82,
+      },
+      words: [
+        { word: "Hello", startMs: 0, durationMs: 500, accuracyScore: 92 },
+        { word: "world", startMs: 2800, durationMs: 500, accuracyScore: 55 },
+      ],
+      durationMs: 3300,
+      recognizedText: "Hello world.",
+    });
+
+    render(<MediaPage />);
+    fireEvent.change(screen.getByLabelText("媒体文件路径"), {
+      target: { value: "/Users/test/audio.m4a" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "检查" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("格式可转码")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /转码为 WAV/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText("转码完成")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /开始语音评估/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Azure 语音评估完成")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("84.0")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hello" })).toBeInTheDocument();
+    expect(screen.getByText("[Pause: 2.3s]")).toBeInTheDocument();
+    expect(assessPronunciation).toHaveBeenCalledWith({ wavPath: "/Users/test/cache/audio.wav" });
+  });
+
+  it("blocks transcode when the selected media type is unsupported", async () => {
+    vi.mocked(getMediaMetadata).mockResolvedValue({
+      path: "/Users/test/notes.txt",
+      fileName: "notes.txt",
+      extension: "txt",
+      sizeBytes: 512,
+      supported: false,
+    });
+
+    render(<MediaPage />);
+    fireEvent.change(screen.getByLabelText("媒体文件路径"), {
+      target: { value: "/Users/test/notes.txt" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "检查" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("格式不支持")).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("button", { name: /转码为 WAV/ })).toBeDisabled();
+  });
+
+  it("shows a clear error when transcode fails", async () => {
+    vi.mocked(getMediaMetadata).mockResolvedValue({
+      path: "/Users/test/broken.mp3",
+      fileName: "broken.mp3",
+      extension: "mp3",
+      sizeBytes: 1024,
+      supported: true,
+    });
+    vi.mocked(transcodeMedia).mockRejectedValue({
+      code: "MEDIA_TRANSCODE_FAILED",
+      message: "媒体转码失败。",
+    });
+
+    render(<MediaPage />);
+    fireEvent.change(screen.getByLabelText("媒体文件路径"), {
+      target: { value: "/Users/test/broken.mp3" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "检查" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("格式可转码")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /转码为 WAV/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText("媒体处理失败")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("媒体转码失败。")).toBeInTheDocument();
   });
 });

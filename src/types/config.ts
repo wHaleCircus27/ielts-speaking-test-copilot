@@ -1,6 +1,10 @@
 export type ThemeId = "theme-claude" | "theme-animal" | "theme-glass";
 
-export type DeepSeekModel = "deepseek-chat" | "deepseek-reasoner";
+export type DeepSeekModel =
+  | "deepseek-v4-flash"
+  | "deepseek-v4-pro"
+  | "deepseek-chat"
+  | "deepseek-reasoner";
 
 export type FontPreference = "system" | "serif" | "space" | "mono";
 
@@ -51,7 +55,7 @@ export const defaultPublicConfig: PublicAppConfig = {
   deepseek: {
     apiKeyConfigured: false,
     baseUrl: "https://api.deepseek.com",
-    model: "deepseek-chat",
+    model: "deepseek-v4-flash",
   },
   azure: {
     keyConfigured: false,

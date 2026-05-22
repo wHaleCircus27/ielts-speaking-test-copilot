@@ -52,7 +52,7 @@ type HealthCheckResult = {
 
 ## 验收标准
 
-- `npm run dev` 可启动前端。
+- `pnpm dev` 可启动前端。
 - Tauri 开发模式可打开桌面窗口。
 - 前端可调用 `health_check` 并显示成功状态。
 - TypeScript 编译通过。
@@ -68,4 +68,3 @@ type HealthCheckResult = {
 
 - Tauri 2 插件 API 与 Tauri 1 差异较大，后续新增 shell、fs、dialog 能力时逐项引入。
 - 首版不引入重型状态管理，等跨模块状态增多后再评估 Zustand 或 Jotai。
-

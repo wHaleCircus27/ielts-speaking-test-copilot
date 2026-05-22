@@ -1,12 +1,16 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { AlertCircle, CheckCircle2, FileAudio, FolderOpen, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { Field, TextInput } from "../../components/Field";
 import { getMediaMetadata, selectMediaFile, transcodeMedia } from "../../lib/media";
+import { assessPronunciation, validateAzureConfig } from "../../lib/speech";
+import { buildTranscriptTokens, lowAccuracyThreshold } from "../../lib/transcript";
 import type { AppError } from "../../types/errors";
 import type { MediaMetadata, MediaTranscodeResult } from "../../types/media";
+import type { SpeechAssessmentResult, TranscriptToken } from "../../types/speech";
 
 const supportedExtensions = "MP4, MP3, M4A, WAV";
 
@@ -14,9 +18,56 @@ export function MediaPage() {
   const [inputPath, setInputPath] = useState("");
   const [metadata, setMetadata] = useState<MediaMetadata | null>(null);
   const [result, setResult] = useState<MediaTranscodeResult | null>(null);
+  const [speechAssessmentResult, setSpeechAssessmentResult] = useState<SpeechAssessmentResult | null>(null);
   const [busy, setBusy] = useState(false);
+  const [assessingSpeech, setAssessingSpeech] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const outputUrl = useMemo(() => (result ? pathToAssetUrl(result.outputPath) : null), [result]);
+  const transcriptTokens = useMemo(
+    () => (speechAssessmentResult ? buildTranscriptTokens(speechAssessmentResult.words) : []),
+    [speechAssessmentResult],
+  );
+
+  useEffect(() => {
+    let disposed = false;
+    let removeDragDropListener: (() => void) | null = null;
+
+    async function registerDragDropListener() {
+      try {
+        removeDragDropListener = await getCurrentWebview().onDragDropEvent((event) => {
+          if (event.payload.type !== "drop") {
+            return;
+          }
+
+          const droppedPath = event.payload.paths[0] ?? "";
+          if (!droppedPath) {
+            setError({
+              code: "MEDIA_DROP_PATH_UNAVAILABLE",
+              message: "无法从拖拽文件读取本地路径，请使用“选择文件”按钮。",
+            });
+            return;
+          }
+
+          setInputPath(droppedPath);
+          void loadMetadata(droppedPath);
+        });
+
+        if (disposed) {
+          removeDragDropListener();
+        }
+      } catch {
+        removeDragDropListener = null;
+      }
+    }
+
+    void registerDragDropListener();
+
+    return () => {
+      disposed = true;
+      removeDragDropListener?.();
+    };
+  }, []);
 
   async function chooseFile() {
     setError(null);
@@ -33,12 +84,14 @@ export function MediaPage() {
     if (!path.trim()) {
       setMetadata(null);
       setResult(null);
+      setSpeechAssessmentResult(null);
       return;
     }
 
     setBusy(true);
     setError(null);
     setResult(null);
+    setSpeechAssessmentResult(null);
     try {
       const nextMetadata = await getMediaMetadata(path);
       setMetadata(nextMetadata);
@@ -58,6 +111,7 @@ export function MediaPage() {
     setBusy(true);
     setError(null);
     setResult(null);
+    setSpeechAssessmentResult(null);
     try {
       const nextResult = await transcodeMedia({ inputPath });
       setResult(nextResult);
@@ -70,14 +124,49 @@ export function MediaPage() {
     }
   }
 
+  async function startSpeechAssessment() {
+    if (!result) {
+      return;
+    }
+
+    setAssessingSpeech(true);
+    setError(null);
+    setSpeechAssessmentResult(null);
+    try {
+      const azureConfigValidationResult = await validateAzureConfig();
+      if (!azureConfigValidationResult.ok) {
+        setError({
+          code: "AZURE_CONFIG_INVALID",
+          message: azureConfigValidationResult.message,
+        });
+        return;
+      }
+
+      const nextSpeechAssessmentResult = await assessPronunciation({ wavPath: result.outputPath });
+      setSpeechAssessmentResult(nextSpeechAssessmentResult);
+    } catch (caught) {
+      setError(caught as AppError);
+    } finally {
+      setAssessingSpeech(false);
+    }
+  }
+
+  function jumpToTranscriptWord(seconds: number) {
+    if (!audioPlayerRef.current) {
+      return;
+    }
+
+    audioPlayerRef.current.currentTime = seconds;
+    void audioPlayerRef.current.play();
+  }
+
   function onDrop(event: React.DragEvent<HTMLDivElement>) {
     event.preventDefault();
-    const file = event.dataTransfer.files.item(0);
-    const path = file ? getDroppedFilePath(file) : "";
+    const path = getBrowserDroppedFilePath(event.dataTransfer);
     if (!path) {
       setError({
         code: "MEDIA_DROP_PATH_UNAVAILABLE",
-        message: "无法从拖拽文件读取本地路径，请使用“选择文件”按钮。",
+        message: "无法从浏览器拖拽事件读取本地路径，请使用“选择文件”按钮或 Tauri 窗口拖拽。",
       });
       return;
     }
@@ -165,15 +254,39 @@ export function MediaPage() {
               <InfoRow label="格式" value={`${result.format.toUpperCase()} / ${result.sampleRate} Hz / ${result.channels} channel / ${result.codec}`} />
             </dl>
             {outputUrl ? (
-              <audio controls src={outputUrl} className="mt-5 w-full">
+              <audio ref={audioPlayerRef} controls src={outputUrl} className="mt-5 w-full">
                 <track kind="captions" />
               </audio>
             ) : null}
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <Button type="button" variant="primary" onClick={() => void startSpeechAssessment()} disabled={assessingSpeech}>
+                {assessingSpeech ? <Loader2 size={16} className="mr-2 animate-spin" /> : <CheckCircle2 size={16} className="mr-2" />}
+                {assessingSpeech ? "语音评估中" : "开始语音评估"}
+              </Button>
+              <p className="text-sm leading-6 text-muted">使用 Azure continuous mode 评估长音频。</p>
+            </div>
             {result.logSummary ? (
               <pre className="mt-5 max-h-[160px] overflow-auto whitespace-pre-wrap rounded-app border border-border bg-elevated/35 p-3 text-xs leading-5 text-muted">
                 {result.logSummary}
               </pre>
             ) : null}
+          </Card>
+        ) : null}
+
+        {speechAssessmentResult ? (
+          <Card>
+            <div className="mb-4 flex items-center gap-2 text-primary-strong">
+              <CheckCircle2 size={18} />
+              <h3 className="text-lg font-semibold">Azure 语音评估完成</h3>
+            </div>
+            <div className="grid gap-3 text-sm md:grid-cols-5">
+              <ScoreBox label="Pron" value={speechAssessmentResult.overall.pronunciationScore} />
+              <ScoreBox label="Accuracy" value={speechAssessmentResult.overall.accuracyScore} />
+              <ScoreBox label="Fluency" value={speechAssessmentResult.overall.fluencyScore} />
+              <ScoreBox label="Completeness" value={speechAssessmentResult.overall.completenessScore} />
+              <ScoreBox label="Prosody" value={speechAssessmentResult.overall.prosodyScore} />
+            </div>
+            <TranscriptTokenList tokens={transcriptTokens} onJumpToWord={jumpToTranscriptWord} />
           </Card>
         ) : null}
       </section>
@@ -204,6 +317,55 @@ export function MediaPage() {
   );
 }
 
+function ScoreBox({ label, value }: { label: string; value?: number }) {
+  return (
+    <div className="rounded-app border border-border bg-elevated/35 p-3">
+      <div className="text-xs font-semibold uppercase text-muted">{label}</div>
+      <div className="mt-1 text-lg font-bold">{value === undefined ? "--" : value.toFixed(1)}</div>
+    </div>
+  );
+}
+
+function TranscriptTokenList({ tokens, onJumpToWord }: { tokens: TranscriptToken[]; onJumpToWord: (seconds: number) => void }) {
+  if (!tokens.length) {
+    return <p className="mt-4 text-sm leading-6 text-muted">Azure 未返回逐词 transcript。</p>;
+  }
+
+  return (
+    <div className="mt-5 max-h-[260px] overflow-y-auto rounded-app border border-border bg-elevated/35 p-4 text-sm leading-8">
+      {tokens.map((token) => {
+        if (token.type === "pause") {
+          return (
+            <span key={token.id} className="mx-1 rounded bg-danger/10 px-1.5 py-0.5 text-xs font-semibold text-danger">
+              [Pause: {(token.durationMs / 1000).toFixed(1)}s]
+            </span>
+          );
+        }
+
+        const isLowAccuracy = token.accuracyScore !== undefined && token.accuracyScore < lowAccuracyThreshold;
+        const titleParts = [
+          token.accuracyScore === undefined ? "" : `Accuracy: ${token.accuracyScore.toFixed(1)}`,
+          ...(token.phonemeErrors ?? []),
+        ].filter(Boolean);
+
+        return (
+          <button
+            key={token.id}
+            type="button"
+            title={titleParts.join("\n")}
+            onClick={() => onJumpToWord(token.startMs / 1000)}
+            className={`mx-0.5 rounded px-1 py-0.5 transition hover:bg-primary/10 ${
+              isLowAccuracy ? "text-danger underline decoration-danger decoration-2 underline-offset-4" : ""
+            }`}
+          >
+            {token.text}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid gap-1">
@@ -227,10 +389,7 @@ function pathToAssetUrl(path: string) {
   return convertFileSrc(path);
 }
 
-function getDroppedFilePath(file: File) {
-  return (
-    (file as File & { path?: string }).path ??
-    (file as File & { webkitRelativePath?: string }).webkitRelativePath ??
-    ""
-  );
+function getBrowserDroppedFilePath(dataTransfer: DataTransfer) {
+  const file = dataTransfer.files.item(0);
+  return file ? ((file as File & { path?: string }).path ?? "") : "";
 }

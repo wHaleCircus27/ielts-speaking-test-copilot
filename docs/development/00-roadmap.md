@@ -31,8 +31,16 @@
 
 - 应用可本地启动。
 - DeepSeek 配置可保存和恢复。
+- DeepSeek 默认模型为 `deepseek-v4-flash`，可切换到 `deepseek-v4-pro`。
+- 设置页可对已保存 DeepSeek 配置执行 `/models` 连通性测试，并展示可用模型列表。
 - 输入文本可返回总分、四项小分、词汇建议和重构示范。
 - 非法 JSON 或 API 错误不会导致页面崩溃。
+
+### 当前状态
+
+- 已接入 `deepseek-v4-flash` 和 `deepseek-v4-pro`。
+- 已保留 `deepseek-chat`、`deepseek-reasoner` 旧模型值的本地配置兼容读取。
+- 已用本地测试 Key 验证 `/models` 和 `deepseek-v4-flash` `/chat/completions` 连通性，测试输出未包含 API Key。
 
 ## MVP 2：媒体处理
 
@@ -63,13 +71,13 @@
 
 ### 任务拆分
 
-- R-201：实现 Azure 配置读取。
-- R-202：实现 Pronunciation Assessment 调用。
-- R-203：解析逐词时间戳和评分。
-- R-204：渲染 transcript。
-- R-205：实现停顿标注。
-- R-206：实现点击单词跳转。
-- R-207：实现播放中当前词高亮。
+- R-201：实现 Azure 配置读取。已完成。
+- R-202：实现 Pronunciation Assessment 调用。已完成：使用 Azure Speech SDK continuous mode 支持长音频。
+- R-203：解析逐词时间戳和评分。已完成。
+- R-204：渲染 transcript。已完成。
+- R-205：实现停顿标注。已完成：超过 2 秒标红。
+- R-206：实现点击单词跳转。已完成。
+- R-207：实现播放中当前词高亮。已完成：主工作台词级高亮。
 
 ### 验收标准
 
@@ -77,6 +85,14 @@
 - 逐词评分和时间戳可被前端展示。
 - 停顿超过 2 秒标红。
 - 点击单词能跳转播放器位置。
+
+### 当前状态
+
+- 主工作台媒体流程已接入转码后 Azure 长音频发音评估，并生成真实 transcript 和历史报告。
+- 独立媒体页已提供语音评估调试入口。
+- 自动化测试已覆盖 Azure 响应映射、transcript token、主工作台和媒体页 mock 评估流程。
+- 已完成微软文档一致性核对：continuous mode、unscripted assessment、prosody `en-US` 限制、`EnableMiscue` 边界和 token 密钥边界均已对齐。
+- 真实 Azure Speech Key + 30 秒以上长音频人工验收已 deferred，不作为 MVP 3 代码收口阻塞项。
 
 ## MVP 4：教师个性化 RAG
 
@@ -120,4 +136,3 @@
 - 关键路径均有测试或人工验收记录。
 - 外部服务失败时都有明确 UI 状态。
 - API Key 不出现在日志、错误弹窗和前端源码中。
-

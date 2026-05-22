@@ -35,5 +35,7 @@ export type ConfigValidationResult = {
   apiKeyConfigured: boolean;
   baseUrl: string;
   model: string;
+  serviceReachable: boolean;
+  availableModels: string[];
   message: string;
 };

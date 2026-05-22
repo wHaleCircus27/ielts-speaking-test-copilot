@@ -3,11 +3,18 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
 
 const SUPPORTED_EXTENSIONS: &[&str] = &["mp4", "mp3", "m4a", "wav"];
+
+#[derive(Debug, Clone)]
+enum MediaConverter {
+    Ffmpeg(PathBuf),
+    #[cfg(target_os = "macos")]
+    Afconvert(PathBuf),
+}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -78,28 +85,29 @@ fn transcode_media_impl(
     }
 
     let output_dir = app.path().app_cache_dir().map_err(|error| {
-        AppError::with_detail("MEDIA_CACHE_PATH_FAILED", "无法定位媒体缓存目录。", error.to_string())
+        AppError::with_detail(
+            "MEDIA_CACHE_PATH_FAILED",
+            "无法定位媒体缓存目录。",
+            error.to_string(),
+        )
     })?;
     fs::create_dir_all(&output_dir).map_err(|error| {
-        AppError::with_detail("MEDIA_CACHE_CREATE_FAILED", "创建媒体缓存目录失败。", error.to_string())
-    })?;
-
-    let output_path = output_dir.join(output_file_name(&input));
-    let ffmpeg = resolve_ffmpeg_path()?;
-    let args = ffmpeg_args(&input, &output_path);
-    let output = Command::new(&ffmpeg).args(&args).output().map_err(|error| {
         AppError::with_detail(
-            "FFMPEG_START_FAILED",
-            "无法启动 FFmpeg，请确认已安装或已配置 sidecar。",
+            "MEDIA_CACHE_CREATE_FAILED",
+            "创建媒体缓存目录失败。",
             error.to_string(),
         )
     })?;
 
+    let output_path = output_dir.join(output_file_name(&input));
+    let converter = resolve_media_converter()?;
+    let output = run_media_converter(&converter, &input, &output_path)?;
+
     if !output.status.success() {
         return Err(AppError::with_detail(
-            "FFMPEG_TRANSCODE_FAILED",
+            "MEDIA_TRANSCODE_FAILED",
             "媒体转码失败。",
-            summarize_process_output(&output.stderr),
+            summarize_process_output(&output),
         ));
     }
 
@@ -111,7 +119,7 @@ fn transcode_media_impl(
         channels: 1,
         codec: "pcm_s16le",
         duration_ms: None,
-        log_summary: Some(summarize_process_output(&output.stderr)),
+        log_summary: Some(converter_log_summary(&converter, &output)),
     })
 }
 
@@ -121,7 +129,11 @@ fn read_media_metadata(path: &Path) -> Result<MediaMetadata, AppError> {
     }
 
     let raw_metadata = fs::metadata(path).map_err(|error| {
-        AppError::with_detail("MEDIA_FILE_NOT_FOUND", "无法读取媒体文件。", error.to_string())
+        AppError::with_detail(
+            "MEDIA_FILE_NOT_FOUND",
+            "无法读取媒体文件。",
+            error.to_string(),
+        )
     })?;
 
     if !raw_metadata.is_file() {
@@ -180,11 +192,43 @@ fn ffmpeg_args(input: &Path, output: &Path) -> Vec<String> {
     ]
 }
 
-fn resolve_ffmpeg_path() -> Result<PathBuf, AppError> {
+#[cfg(target_os = "macos")]
+fn afconvert_args(input: &Path, output: &Path) -> Vec<String> {
+    vec![
+        "-f".to_string(),
+        "WAVE".to_string(),
+        "-d".to_string(),
+        "LEI16@16000".to_string(),
+        "-c".to_string(),
+        "1".to_string(),
+        input.to_string_lossy().to_string(),
+        output.to_string_lossy().to_string(),
+    ]
+}
+
+fn resolve_media_converter() -> Result<MediaConverter, AppError> {
+    if let Some(ffmpeg_path) = resolve_ffmpeg_path() {
+        return Ok(MediaConverter::Ffmpeg(ffmpeg_path));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if command_can_start("afconvert") {
+            return Ok(MediaConverter::Afconvert(PathBuf::from("afconvert")));
+        }
+    }
+
+    Err(AppError::new(
+        "MEDIA_CONVERTER_MISSING",
+        "无法启动媒体转码器，请安装 FFmpeg、配置 FFMPEG_PATH，或在 macOS 上确认 afconvert 可用。",
+    ))
+}
+
+fn resolve_ffmpeg_path() -> Option<PathBuf> {
     if let Ok(path) = env::var("FFMPEG_PATH") {
         let candidate = PathBuf::from(path);
         if candidate.is_file() {
-            return Ok(candidate);
+            return Some(candidate);
         }
     }
 
@@ -195,18 +239,78 @@ fn resolve_ffmpeg_path() -> Result<PathBuf, AppError> {
         PathBuf::from("./binaries/ffmpeg-aarch64-apple-darwin"),
     ] {
         if candidate.is_file() {
-            return Ok(candidate);
+            return Some(candidate);
         }
     }
 
-    Ok(PathBuf::from("ffmpeg"))
+    if command_can_start("ffmpeg") {
+        return Some(PathBuf::from("ffmpeg"));
+    }
+
+    None
 }
 
-fn summarize_process_output(bytes: &[u8]) -> String {
-    let raw = String::from_utf8_lossy(bytes);
+fn command_can_start(command: &str) -> bool {
+    Command::new(command).arg("-h").output().is_ok()
+}
+
+fn run_media_converter(
+    converter: &MediaConverter,
+    input: &Path,
+    output: &Path,
+) -> Result<Output, AppError> {
+    match converter {
+        MediaConverter::Ffmpeg(ffmpeg_path) => Command::new(ffmpeg_path)
+            .args(ffmpeg_args(input, output))
+            .output()
+            .map_err(|error| {
+                AppError::with_detail(
+                    "FFMPEG_START_FAILED",
+                    "无法启动 FFmpeg，请确认已安装或已配置 sidecar。",
+                    error.to_string(),
+                )
+            }),
+        #[cfg(target_os = "macos")]
+        MediaConverter::Afconvert(afconvert_path) => Command::new(afconvert_path)
+            .args(afconvert_args(input, output))
+            .output()
+            .map_err(|error| {
+                AppError::with_detail(
+                    "AFCONVERT_START_FAILED",
+                    "无法启动 macOS afconvert 转码器。",
+                    error.to_string(),
+                )
+            }),
+    }
+}
+
+fn converter_log_summary(converter: &MediaConverter, output: &Output) -> String {
+    let process_summary = summarize_process_output(output);
+    let converter_name = match converter {
+        MediaConverter::Ffmpeg(_) => "FFmpeg",
+        #[cfg(target_os = "macos")]
+        MediaConverter::Afconvert(_) => "afconvert",
+    };
+
+    if process_summary.is_empty() {
+        format!("{converter_name} 转码完成。")
+    } else {
+        format!("{converter_name} 转码完成。\n{process_summary}")
+    }
+}
+
+fn summarize_process_output(output: &Output) -> String {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let raw = if stderr.trim().is_empty() {
+        stdout
+    } else {
+        stderr
+    };
     raw.lines()
         .rev()
         .filter(|line| !line.trim().is_empty())
+        .map(sanitize_process_log_line)
         .take(6)
         .collect::<Vec<_>>()
         .into_iter()
@@ -215,9 +319,54 @@ fn summarize_process_output(bytes: &[u8]) -> String {
         .join("\n")
 }
 
+fn sanitize_process_log_line(line: &str) -> String {
+    if contains_local_path_like_text(line) {
+        "[已隐藏包含本地路径的转码日志行]".to_string()
+    } else {
+        line.to_string()
+    }
+}
+
+fn contains_local_path_like_text(line: &str) -> bool {
+    if line.contains("file:") {
+        return true;
+    }
+
+    line.split_whitespace().any(|token| {
+        let trimmed_token = token.trim_matches(|value: char| {
+            value == '\''
+                || value == '"'
+                || value == '`'
+                || value == '('
+                || value == ')'
+                || value == '['
+                || value == ']'
+                || value == ','
+                || value == ':'
+        });
+
+        trimmed_token.starts_with('/')
+            || trimmed_token.starts_with("~/")
+            || has_windows_drive_prefix(trimmed_token)
+    })
+}
+
+fn has_windows_drive_prefix(value: &str) -> bool {
+    let mut chars = value.chars();
+    matches!(
+        (chars.next(), chars.next(), chars.next()),
+        (Some(drive_letter), Some(':'), Some('\\' | '/')) if drive_letter.is_ascii_alphabetic()
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    use std::os::unix::process::ExitStatusExt;
+    #[cfg(windows)]
+    use std::os::windows::process::ExitStatusExt;
+    use std::process::ExitStatus;
 
     #[test]
     fn validates_supported_extensions() {
@@ -236,11 +385,57 @@ mod tests {
 
     #[test]
     fn builds_ffmpeg_args_without_shell_concatenation() {
-        let args = ffmpeg_args(Path::new("/tmp/input file.mp3"), Path::new("/tmp/output file.wav"));
+        let args = ffmpeg_args(
+            Path::new("/tmp/input file.mp3"),
+            Path::new("/tmp/output file.wav"),
+        );
         assert_eq!(args[0], "-y");
         assert_eq!(args[1], "-i");
         assert_eq!(args[2], "/tmp/input file.mp3");
-        assert_eq!(args[3..9], ["-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le"]);
+        assert_eq!(
+            args[3..9],
+            ["-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le"]
+        );
         assert_eq!(args[9], "/tmp/output file.wav");
+    }
+
+    #[test]
+    fn hides_local_paths_from_process_log_summary() {
+        let output = Output {
+            status: successful_exit_status(),
+            stdout: Vec::new(),
+            stderr: b"Input #0, mp3, from '/Users/test/IELTS sample/audio file.mp3':\nInvalid data found when processing input\n".to_vec(),
+        };
+
+        let summary = summarize_process_output(&output);
+
+        assert!(!summary.contains("/Users/test"));
+        assert!(!summary.contains("audio file.mp3"));
+        assert!(summary.contains("[已隐藏包含本地路径的转码日志行]"));
+        assert!(summary.contains("Invalid data found when processing input"));
+    }
+
+    #[test]
+    fn keeps_non_path_process_log_lines_with_slashes() {
+        let output = Output {
+            status: successful_exit_status(),
+            stdout: Vec::new(),
+            stderr: b"Stream #0:0: Audio: mp3, 44100 Hz, stereo, fltp, 128 kb/s\n".to_vec(),
+        };
+
+        let summary = summarize_process_output(&output);
+
+        assert!(summary.contains("128 kb/s"));
+        assert!(!summary.contains("[已隐藏包含本地路径的转码日志行]"));
+    }
+
+    #[cfg(unix)]
+    fn successful_exit_status() -> ExitStatus {
+        ExitStatus::from_raw(0)
+    }
+
+    #[cfg(windows)]
+    fn successful_exit_status() -> ExitStatus {
+        ExitStatus::from_raw(0)
     }
 }

@@ -70,6 +70,8 @@ pub(crate) struct ConfigValidationResult {
     pub(crate) api_key_configured: bool,
     pub(crate) base_url: String,
     pub(crate) model: String,
+    pub(crate) service_reachable: bool,
+    pub(crate) available_models: Vec<String>,
     pub(crate) message: String,
 }
 
@@ -88,27 +90,130 @@ struct DeepSeekMessage {
     content: String,
 }
 
-pub(crate) fn validate_deepseek_config(config: &StoredDeepSeekConfig) -> ConfigValidationResult {
+#[derive(Debug, Deserialize)]
+struct DeepSeekModelsResponse {
+    data: Vec<DeepSeekModelInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DeepSeekModelInfo {
+    id: String,
+}
+
+pub(crate) async fn validate_deepseek_config(
+    config: &StoredDeepSeekConfig,
+) -> Result<ConfigValidationResult, AppError> {
     let api_key_configured = config
         .api_key
         .as_ref()
         .is_some_and(|key| !key.trim().is_empty());
     let base_url = config.base_url.trim().to_string();
-    let ok = api_key_configured && !base_url.is_empty();
 
-    ConfigValidationResult {
-        ok,
-        api_key_configured,
-        base_url,
-        model: config.model.as_str().to_string(),
-        message: if ok {
-            "DeepSeek 配置可用。".to_string()
-        } else if !api_key_configured {
-            "请先在设置页配置 DeepSeek API Key。".to_string()
-        } else {
-            "DeepSeek Base URL 不能为空。".to_string()
-        },
+    if !api_key_configured || base_url.is_empty() {
+        return Ok(ConfigValidationResult {
+            ok: false,
+            api_key_configured,
+            base_url,
+            model: config.model.as_str().to_string(),
+            service_reachable: false,
+            available_models: vec![],
+            message: if !api_key_configured {
+                "请先在设置页配置 DeepSeek API Key。".to_string()
+            } else {
+                "DeepSeek Base URL 不能为空。".to_string()
+            },
+        });
     }
+
+    let api_key = config
+        .api_key
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            AppError::new(
+                "DEEPSEEK_KEY_MISSING",
+                "请先在设置页配置 DeepSeek API Key。",
+            )
+        })?;
+    let endpoint = models_endpoint(&config.base_url)?;
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|error| {
+            AppError::with_detail(
+                "DEEPSEEK_CLIENT_FAILED",
+                "DeepSeek 客户端初始化失败。",
+                error.to_string(),
+            )
+        })?;
+    let response = client
+        .get(endpoint)
+        .bearer_auth(api_key)
+        .send()
+        .await
+        .map_err(|error| {
+            AppError::with_detail(
+                "DEEPSEEK_CONNECTIVITY_FAILED",
+                "DeepSeek 连通性测试失败，请检查网络或 Base URL。",
+                error.to_string(),
+            )
+        })?;
+    let status = response.status();
+    let body = response.text().await.map_err(|error| {
+        AppError::with_detail(
+            "DEEPSEEK_RESPONSE_READ_FAILED",
+            "读取 DeepSeek 连通性响应失败。",
+            error.to_string(),
+        )
+    })?;
+
+    if !status.is_success() {
+        return Ok(ConfigValidationResult {
+            ok: false,
+            api_key_configured: true,
+            base_url,
+            model: config.model.as_str().to_string(),
+            service_reachable: false,
+            available_models: vec![],
+            message: format!(
+                "DeepSeek 连通性测试失败，服务返回状态 {}。",
+                status.as_u16()
+            ),
+        });
+    }
+
+    let parsed: DeepSeekModelsResponse = serde_json::from_str(&body).map_err(|error| {
+        AppError::with_detail(
+            "DEEPSEEK_MODELS_RESPONSE_INVALID",
+            "DeepSeek 模型列表响应格式无法解析。",
+            format!("{}; body={}", error, summarize_for_debug(&body)),
+        )
+    })?;
+    let available_models = parsed
+        .data
+        .into_iter()
+        .map(|model| model.id)
+        .filter(|model| !model.trim().is_empty())
+        .collect::<Vec<_>>();
+    let selected_model = config.model.as_str().to_string();
+    let selected_model_available = available_models
+        .iter()
+        .any(|model| model == selected_model.as_str());
+
+    Ok(ConfigValidationResult {
+        ok: selected_model_available,
+        api_key_configured: true,
+        base_url,
+        model: selected_model.clone(),
+        service_reachable: true,
+        message: if selected_model_available {
+            format!("DeepSeek 连通性正常，当前模型 {selected_model} 可用。")
+        } else {
+            format!("DeepSeek 可连接，但当前模型 {selected_model} 不在可用模型列表中。")
+        },
+        available_models,
+    })
 }
 
 pub(crate) async fn grade_speaking(
@@ -236,6 +341,22 @@ fn chat_completions_endpoint(base_url: &str) -> Result<String, AppError> {
         Ok(trimmed.to_string())
     } else {
         Ok(format!("{trimmed}/chat/completions"))
+    }
+}
+
+fn models_endpoint(base_url: &str) -> Result<String, AppError> {
+    let trimmed = base_url.trim().trim_end_matches('/');
+    if trimmed.is_empty() {
+        return Err(AppError::new(
+            "DEEPSEEK_BASE_URL_EMPTY",
+            "DeepSeek Base URL 不能为空。",
+        ));
+    }
+
+    if let Some(api_root) = trimmed.strip_suffix("/chat/completions") {
+        Ok(format!("{api_root}/models"))
+    } else {
+        Ok(format!("{trimmed}/models"))
     }
 }
 
@@ -453,5 +574,21 @@ mod tests {
         assert!(prompt.contains("Describe a happy event"));
         assert!(prompt.contains("I got a bike"));
         assert!(prompt.contains("IELTS Speaking Part 2"));
+    }
+
+    #[test]
+    fn builds_models_endpoint_from_api_root() {
+        let endpoint =
+            models_endpoint("https://api.deepseek.com").expect("models endpoint should build");
+
+        assert_eq!(endpoint, "https://api.deepseek.com/models");
+    }
+
+    #[test]
+    fn builds_models_endpoint_from_chat_completions_endpoint() {
+        let endpoint = models_endpoint("https://api.deepseek.com/chat/completions")
+            .expect("models endpoint should build");
+
+        assert_eq!(endpoint, "https://api.deepseek.com/models");
     }
 }
