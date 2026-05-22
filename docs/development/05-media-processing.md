@@ -23,6 +23,7 @@
 - 前端使用 Tauri dialog 或拖拽事件获取文件路径。
 - Rust command 校验扩展名和文件存在性。
 - FFmpeg 作为 Tauri sidecar 放置在 `src-tauri/binaries`。
+- macOS 开发环境中如 FFmpeg 缺失，可使用系统 `afconvert` 作为后备转码器，输出参数保持一致。
 - 输出格式固定为 `WAV 16kHz 16bit mono PCM`。
 - 输出文件写入应用缓存目录或用户指定临时目录。
 - 转码完成后返回输出路径、时长、日志摘要。
@@ -87,4 +88,3 @@ type MediaTranscodeResult = {
 
 - ARM64 FFmpeg 二进制来源需要固定。
 - 本地路径可能包含空格和中文，调用参数必须使用安全参数数组而不是拼接 shell 字符串。
-

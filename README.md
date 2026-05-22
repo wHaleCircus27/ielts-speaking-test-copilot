@@ -4,9 +4,12 @@
 
 ## 当前进展
 
-- MVP 1 基础工程、设置、主题和 DeepSeek 文本批改链路已进入收口阶段。
-- MVP 2 已启动媒体导入与 FFmpeg 转码能力。
-- Azure Pronunciation Assessment、逐词 transcript 同步和教师 RAG 仍在后续 MVP 范围内。
+- MVP 1 基础工程、设置、主题和 DeepSeek 文本批改链路已进入收口阶段；DeepSeek 已接入 `deepseek-v4-flash` / `deepseek-v4-pro`，默认模型为 `deepseek-v4-flash`。
+- 设置页已提供 DeepSeek `/models` 连通性测试，返回可用模型列表和当前模型可用状态，不回显或记录 API Key。
+- MVP 2 已完成媒体导入与 FFmpeg/afconvert 转码基础链路。
+- MVP 3 已代码收口：按微软文档接入 Azure Speech SDK continuous mode 长音频发音评估、逐词 transcript、停顿标注、低分词、点击跳转和播放高亮。
+- MVP 3 当前验收依据为微软文档结构一致性和 mock 自动化验证；真实 Azure API Key、region、token 与 30 秒以上长音频验证已暂缓到后续人工验收。
+- MVP 4 已启动第一阶段：教师案例库支持 SQLite 本地新增、列表、编辑和单条删除；当前通过系统 `sqlite3` 写入本地数据库，Embedding、`sqlite-vec`、Top-K 检索和 Prompt 注入仍在后续范围。
 
 详细计划见：
 
@@ -16,26 +19,27 @@
 
 ## 本地开发
 
-当前 shell 环境可能没有全局 `npm`，可直接使用项目本地依赖和 Codex 内置 Node 运行命令。
+本项目统一使用 `pnpm` 管理前端依赖和脚本。
 
 常用命令：
 
 ```bash
-node node_modules/typescript/bin/tsc --noEmit
-node node_modules/vitest/vitest.mjs run
+pnpm typecheck
+pnpm test
+pnpm build
 cd src-tauri && cargo test
 ```
 
 前端开发服务：
 
 ```bash
-node node_modules/vite/bin/vite.js --host 127.0.0.1
+pnpm dev --host 127.0.0.1
 ```
 
 Tauri 开发模式：
 
 ```bash
-npm run tauri dev
+pnpm tauri dev
 ```
 
 ## 媒体转码
@@ -48,6 +52,7 @@ FFmpeg 查找顺序：
 2. `src-tauri/binaries/ffmpeg`。
 3. `src-tauri/binaries/ffmpeg-aarch64-apple-darwin`。
 4. 系统 `ffmpeg`。
+5. macOS 开发环境中，如 FFmpeg 缺失，则使用系统 `afconvert` 作为后备转码器。
 
 首版不提交真实 FFmpeg 二进制到仓库。
 
@@ -64,5 +69,6 @@ FFmpeg 查找顺序：
 
 - API Key 不写入前端源码。
 - 前端只显示密钥是否已配置，不回显完整密钥。
+- DeepSeek 连通性测试只读取本地已保存配置或 `test-resource/` 中的本地测试 Key，不将 Key 写入仓库、日志或测试输出。
 - 本地路径、转码日志和 API 错误信息不得泄露密钥。
 - 不执行批量删除文件或目录操作。

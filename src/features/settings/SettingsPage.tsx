@@ -14,6 +14,7 @@ import {
   clearDeepSeekKey,
   saveAppConfig,
 } from "../../lib/config";
+import { validateDeepSeekConfig } from "../../lib/grading";
 import type {
   FontPreference,
   FontSizePreference,
@@ -77,6 +78,14 @@ const tabOptions: Array<{
   { id: "ai", label: "AI 引擎模型", icon: Sparkles },
 ];
 
+const preferredDeepSeekModelOptions: Array<{
+  value: SaveAppConfigInput["deepseek"]["model"];
+  label: string;
+}> = [
+  { value: "deepseek-v4-flash", label: "deepseek-v4-flash" },
+  { value: "deepseek-v4-pro", label: "deepseek-v4-pro" },
+];
+
 function getReferenceTheme(theme: ThemeId): ReferenceTheme {
   if (theme === "theme-glass") {
     return "liquid-glass";
@@ -125,6 +134,7 @@ export const SettingsPage = forwardRef<SettingsPageHandle, SettingsPageProps>(fu
     },
   });
   const [saving, setSaving] = useState(false);
+  const [testingDeepSeekConnection, setTestingDeepSeekConnection] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<AppError | null>(null);
 
@@ -244,6 +254,30 @@ export const SettingsPage = forwardRef<SettingsPageHandle, SettingsPageProps>(fu
       setMessage(kind === "deepseek" ? "DeepSeek Key 已清除。" : "Azure Key 已清除。");
     } catch (caught) {
       setError(caught as AppError);
+    }
+  }
+
+  async function testDeepSeekConnection() {
+    setMessage(null);
+    setError(null);
+    setTestingDeepSeekConnection(true);
+    try {
+      const result = await validateDeepSeekConfig();
+      const availableModels = result.availableModels.length
+        ? ` 可用模型：${result.availableModels.join(", ")}。`
+        : "";
+      if (result.ok) {
+        setMessage(`${result.message}${availableModels}`);
+      } else {
+        setError({
+          code: "DEEPSEEK_CONNECTIVITY_UNAVAILABLE",
+          message: `${result.message}${availableModels}`,
+        });
+      }
+    } catch (caught) {
+      setError(caught as AppError);
+    } finally {
+      setTestingDeepSeekConnection(false);
     }
   }
 
@@ -466,10 +500,33 @@ export const SettingsPage = forwardRef<SettingsPageHandle, SettingsPageProps>(fu
                       }
                       className={selectClassName}
                     >
-                      <option value="deepseek-chat">deepseek-chat</option>
-                      <option value="deepseek-reasoner">deepseek-reasoner</option>
+                      {preferredDeepSeekModelOptions.map((modelOption) => (
+                        <option key={modelOption.value} value={modelOption.value}>
+                          {modelOption.label}
+                        </option>
+                      ))}
+                      {!preferredDeepSeekModelOptions.some((modelOption) => modelOption.value === form.deepseek.model) ? (
+                        <option value={form.deepseek.model}>
+                          {form.deepseek.model}（旧配置兼容）
+                        </option>
+                      ) : null}
                     </select>
                   </label>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void testDeepSeekConnection()}
+                    disabled={testingDeepSeekConnection}
+                    className="settings-clear-button"
+                  >
+                    <ServerCog size={16} />
+                    {testingDeepSeekConnection ? "测试中" : "测试 DeepSeek 连接"}
+                  </button>
+                  <p className="self-center text-xs leading-5 opacity-60">
+                    测试使用已保存的 DeepSeek Key、Base URL 和模型。
+                  </p>
                 </div>
 
                 <button type="button" onClick={() => void clearKey("deepseek")} className="settings-clear-button">

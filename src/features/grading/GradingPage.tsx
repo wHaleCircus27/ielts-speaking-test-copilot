@@ -168,7 +168,7 @@ export function GradingPage({ config, serviceReady }: GradingPageProps) {
             后续链路
           </h3>
           <p className="mt-3 text-sm leading-6 text-muted">
-            音频导入和 FFmpeg 转码已移到媒体页。完成转码后，后续 MVP 会把 WAV 送入 Azure Pronunciation Assessment 并生成逐词 transcript。
+            音频导入和 FFmpeg 转码已移到媒体页。MVP 3 已接入 Azure Speech SDK continuous mode 长音频发音评估，并生成逐词 transcript。
           </p>
         </Card>
       </aside>

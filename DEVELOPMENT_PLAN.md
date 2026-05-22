@@ -47,6 +47,8 @@
 | MVP 4 | 教师个性化 RAG | 教师案例录入、SQLite、`sqlite-vec`、Embedding、Prompt 注入 |
 | MVP 5 | 稳定化 | 测试补齐、错误体验、性能检查、发布前验收 |
 
+当前状态：MVP 3 已按微软文档完成代码收口和 mock 自动化验证。真实 Azure API Key 与 30 秒以上长音频验收暂缓到后续人工验收，不作为本次 MVP 3 收口阻塞项。
+
 ## 4. 功能模块
 
 详细开发文档位于 `docs/development/`：
@@ -84,7 +86,11 @@ type AppConfig = {
   deepseek: {
     apiKeyConfigured: boolean;
     baseUrl: string;
-    model: "deepseek-chat" | "deepseek-reasoner";
+    model:
+      | "deepseek-v4-flash"
+      | "deepseek-v4-pro"
+      | "deepseek-chat"
+      | "deepseek-reasoner";
   };
   azure: {
     keyConfigured: boolean;
@@ -111,6 +117,10 @@ type GradeResult = {
 };
 ```
 
+当前默认 DeepSeek 模型为 `deepseek-v4-flash`，设置页主推 `deepseek-v4-flash` 和 `deepseek-v4-pro`。旧模型值 `deepseek-chat`、`deepseek-reasoner` 仅用于兼容既有本地配置。
+
+DeepSeek 配置校验已升级为真实 `/models` 连通性探测，返回当前模型是否可用、服务是否可达和可用模型列表。该探测只在 Rust command 层读取本地密钥，前端不接触真实 API Key。
+
 ## 7. 全局验收标准
 
 - 应用可在目标 macOS 设备启动。
@@ -120,6 +130,7 @@ type GradeResult = {
 - 媒体文件可转码为 `WAV 16kHz 16bit mono PCM`。
 - Azure 返回结果能正确标注逐词评分和停顿。
 - 播放器点击单词可跳转，播放中高亮当前词。
+- MVP 3 当前以微软文档一致性、SDK 调用形态和 mock 自动化验证作为收口标准。
 - 教师案例新增后能参与相似案例检索和 Prompt 注入。
 
 ## 8. 全局工程约束
@@ -131,4 +142,3 @@ type GradeResult = {
 - API Key 不写入前端源码和日志。
 - 本地路径、转码日志和 API 错误信息不得泄露密钥。
 - 首版以可维护的模块边界优先，不提前做复杂插件化。
-

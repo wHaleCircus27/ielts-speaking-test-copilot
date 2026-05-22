@@ -4,6 +4,17 @@
 
 本目录用于承接 `DEVELOPMENT_PLAN.md` 的细颗粒度开发计划。每份文档对应一个功能模块，任务拆分控制在 1-2 天可完成、可验收的范围。
 
+## 当前状态
+
+- MVP 1 基础工程、设置、主题、DeepSeek 文本批改链路已进入收口阶段。
+- DeepSeek 已接入 `deepseek-v4-flash` 和 `deepseek-v4-pro`，默认使用 `deepseek-v4-flash`。
+- 设置页已提供 DeepSeek `/models` 连通性测试，展示 `availableModels` 和当前模型可用状态。
+- MVP 2 媒体导入与转码已完成基础链路。
+- MVP 3 已代码收口：接入 Azure Speech SDK continuous mode 长音频发音评估、逐词 transcript、停顿标注、低分词标注、点击跳转和播放高亮。
+- MVP 4 教师 RAG 仍在后续范围。
+- 当前自动化验证记录：`pnpm typecheck`、`pnpm test`、`pnpm build`、`cd src-tauri && cargo test` 均通过。
+- 当前 deferred 人工验收：配置真实 Azure Speech Key 后，用 30 秒以上 WAV 验证 continuous pronunciation assessment。
+
 ## 推荐阅读顺序
 
 1. [00-roadmap.md](00-roadmap.md)
@@ -54,6 +65,7 @@ flowchart TD
 - 先保证单机个人使用链路稳定，再扩展复杂能力。
 - 外部服务统一由 Rust 后端命令层调用。
 - 前端只处理交互、展示和本地状态，不直接持有敏感密钥。
+- Azure Speech 例外：Rust 后端只签发短期 token，前端 SDK 使用 token 做 continuous recognition，仍不持有 Azure Key。
 - 任何功能都必须有明确失败状态。
 - 不批量删除文件或目录。
 

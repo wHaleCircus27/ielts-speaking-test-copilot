@@ -4,7 +4,9 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
 mod grading;
+mod corpus;
 mod media;
+mod speech;
 
 #[derive(Debug, Serialize)]
 pub(crate) struct AppError {
@@ -53,6 +55,8 @@ enum ThemeId {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 enum DeepSeekModel {
+    DeepseekV4Flash,
+    DeepseekV4Pro,
     DeepseekChat,
     DeepseekReasoner,
 }
@@ -77,6 +81,8 @@ enum FontSizePreference {
 impl DeepSeekModel {
     fn as_str(&self) -> &'static str {
         match self {
+            Self::DeepseekV4Flash => "deepseek-v4-flash",
+            Self::DeepseekV4Pro => "deepseek-v4-pro",
             Self::DeepseekChat => "deepseek-chat",
             Self::DeepseekReasoner => "deepseek-reasoner",
         }
@@ -191,7 +197,7 @@ impl Default for StoredAppConfig {
             deepseek: StoredDeepSeekConfig {
                 api_key: None,
                 base_url: "https://api.deepseek.com".to_string(),
-                model: DeepSeekModel::DeepseekChat,
+                model: DeepSeekModel::DeepseekV4Flash,
             },
             azure: StoredAzureConfig {
                 key: None,
@@ -280,38 +286,27 @@ fn clear_azure_key(app: AppHandle) -> Result<PublicAppConfig, AppError> {
 }
 
 #[tauri::command]
-fn validate_azure_config(app: AppHandle) -> Result<grading::ConfigValidationResult, AppError> {
+fn validate_azure_config(
+    app: AppHandle,
+) -> Result<speech::AzureConfigValidationResult, AppError> {
     let config = read_config(&app)?;
-    let key_configured = config
-        .azure
-        .key
-        .as_ref()
-        .is_some_and(|key| !key.trim().is_empty());
-    let region = config.azure.region.trim();
-    let language = config.azure.language.trim();
-    let ok = key_configured && !region.is_empty() && !language.is_empty();
-
-    Ok(grading::ConfigValidationResult {
-        ok,
-        api_key_configured: key_configured,
-        base_url: region.to_string(),
-        model: language.to_string(),
-        message: if ok {
-            "Azure 配置可用。".to_string()
-        } else if !key_configured {
-            "请先在设置页配置 Azure Key。".to_string()
-        } else if region.is_empty() {
-            "Azure region 不能为空。".to_string()
-        } else {
-            "Azure language 不能为空。".to_string()
-        },
-    })
+    Ok(speech::validate_azure_config(&config.azure))
 }
 
 #[tauri::command]
-fn validate_deepseek_config(app: AppHandle) -> Result<grading::ConfigValidationResult, AppError> {
+async fn issue_azure_speech_token(
+    app: AppHandle,
+) -> Result<speech::AzureSpeechToken, AppError> {
     let config = read_config(&app)?;
-    Ok(grading::validate_deepseek_config(&config.deepseek))
+    speech::issue_azure_speech_token(&config.azure).await
+}
+
+#[tauri::command]
+async fn validate_deepseek_config(
+    app: AppHandle,
+) -> Result<grading::ConfigValidationResult, AppError> {
+    let config = read_config(&app)?;
+    grading::validate_deepseek_config(&config.deepseek).await
 }
 
 #[tauri::command]
@@ -412,8 +407,14 @@ pub fn run() {
             clear_deepseek_key,
             clear_azure_key,
             validate_azure_config,
+            issue_azure_speech_token,
             validate_deepseek_config,
             grade_speaking,
+            corpus::create_teacher_case,
+            corpus::list_teacher_cases,
+            corpus::get_teacher_case,
+            corpus::update_teacher_case,
+            corpus::delete_teacher_case,
             media::select_media_file,
             media::get_media_metadata,
             media::transcode_media
@@ -437,7 +438,7 @@ mod tests {
             "deepseek": {
                 "apiKey": "sk-test",
                 "baseUrl": "https://api.deepseek.com",
-                "model": "deepseek-chat"
+                "model": "deepseek-v4-flash"
             },
             "azure": {
                 "key": "",
@@ -449,8 +450,19 @@ mod tests {
 
         assert_eq!(input.deepseek.api_key.as_deref(), Some("sk-test"));
         assert_eq!(input.deepseek.base_url, "https://api.deepseek.com");
-        assert_eq!(input.deepseek.model.as_str(), "deepseek-chat");
+        assert_eq!(input.deepseek.model.as_str(), "deepseek-v4-flash");
         assert!(matches!(input.typography.font, FontPreference::Serif));
-        assert!(matches!(input.typography.font_size, FontSizePreference::Large));
+        assert!(matches!(
+            input.typography.font_size,
+            FontSizePreference::Large
+        ));
+    }
+
+    #[test]
+    fn deserializes_legacy_deepseek_model_from_existing_config() {
+        let model: DeepSeekModel =
+            serde_json::from_value(serde_json::json!("deepseek-chat")).expect("legacy model");
+
+        assert_eq!(model.as_str(), "deepseek-chat");
     }
 }

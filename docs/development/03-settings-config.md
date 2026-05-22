@@ -17,7 +17,8 @@
 3. 填写 Azure key、region、language。
 4. 选择主题。
 5. 保存配置。
-6. 重启应用后配置仍然可用。
+6. 可点击 DeepSeek 连接测试，应用使用已保存配置请求 `/models` 并展示可用模型。
+7. 重启应用后配置仍然可用。
 
 ## 技术设计
 
@@ -26,6 +27,9 @@
 - 密钥优先写入系统安全存储；如果首版暂未接入 keychain，则写入本地配置文件并限制日志输出。
 - `AppConfig` 分为前端可见配置和后端私密配置。
 - 所有 API 调用从 Rust 后端读取真实密钥。
+- DeepSeek 默认模型为 `deepseek-v4-flash`，设置页主推 `deepseek-v4-flash` 与 `deepseek-v4-pro`。
+- 已保存的旧模型值 `deepseek-chat`、`deepseek-reasoner` 继续可被反序列化，避免旧本地配置读取失败。
+- `validate_deepseek_config` 会执行真实 `/models` 连通性探测，返回 `serviceReachable` 和 `availableModels`。
 
 ## 数据结构
 
@@ -35,7 +39,11 @@ type PublicAppConfig = {
   deepseek: {
     apiKeyConfigured: boolean;
     baseUrl: string;
-    model: "deepseek-chat" | "deepseek-reasoner";
+    model:
+      | "deepseek-v4-flash"
+      | "deepseek-v4-pro"
+      | "deepseek-chat"
+      | "deepseek-reasoner";
   };
   azure: {
     keyConfigured: boolean;
@@ -57,6 +65,16 @@ type SaveAppConfigInput = {
     language: string;
   };
 };
+
+type ConfigValidationResult = {
+  ok: boolean;
+  apiKeyConfigured: boolean;
+  baseUrl: string;
+  model: string;
+  serviceReachable: boolean;
+  availableModels: string[];
+  message: string;
+};
 ```
 
 ## Tauri commands
@@ -65,6 +83,7 @@ type SaveAppConfigInput = {
 - `save_app_config(input: SaveAppConfigInput) -> PublicAppConfig`
 - `clear_deepseek_key() -> PublicAppConfig`
 - `clear_azure_key() -> PublicAppConfig`
+- `validate_deepseek_config() -> ConfigValidationResult`
 
 ## 任务拆分
 
@@ -75,12 +94,15 @@ type SaveAppConfigInput = {
 - C-005：实现密钥已配置状态和清除按钮。
 - C-006：实现保存成功、失败和校验提示。
 - C-007：统一日志脱敏。
+- C-008：实现 DeepSeek `/models` 连通性测试和可用模型列表展示。
 
 ## 验收标准
 
 - 配置保存后重启仍可读取。
 - 前端不显示完整 API Key。
 - 清除密钥后相关功能提示需要重新配置。
+- DeepSeek 连接测试不输出或记录 API Key。
+- DeepSeek 连接测试成功时展示 `deepseek-v4-flash`、`deepseek-v4-pro` 等服务返回模型。
 - 无 DeepSeek Key 时不能发起批改，并显示明确错误。
 - 无 Azure Key 时不能发起语音评估，并显示明确错误。
 
@@ -88,10 +110,16 @@ type SaveAppConfigInput = {
 
 - 单元测试：配置序列化、反序列化、默认值。
 - 集成测试：保存后读取一致。
-- 手动测试：密钥保存、清除、重启恢复。
+- 手动测试：密钥保存、清除、重启恢复、DeepSeek 连接测试成功和失败路径。
+
+## 当前验证记录
+
+- `pnpm typecheck` 通过。
+- `pnpm test` 通过：4 个测试文件，12 个测试。
+- `cd src-tauri && cargo test` 通过：12 个 Rust 测试。
+- 使用 `test-resource/deepseekApiKey.txt` 本地测试 Key 验证 `/models` 返回 `deepseek-v4-flash`、`deepseek-v4-pro`，并验证 `deepseek-v4-flash` `/chat/completions` 返回 JSON。测试输出未包含 API Key。
 
 ## 风险与后续扩展
 
 - 本地配置文件需避免误提交；后续可引入 macOS Keychain。
 - 第三方中转 Base URL 可能有不同接口兼容性，DeepSeek 调用层要保留错误诊断信息。
-
