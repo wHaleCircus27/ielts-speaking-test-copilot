@@ -12,6 +12,7 @@ import {
 import {
   clearAzureKey,
   clearDeepSeekKey,
+  clearZhipuKey,
   saveAppConfig,
 } from "../../lib/config";
 import { validateDeepSeekConfig } from "../../lib/grading";
@@ -127,6 +128,12 @@ export const SettingsPage = forwardRef<SettingsPageHandle, SettingsPageProps>(fu
       baseUrl: config.deepseek.baseUrl,
       model: config.deepseek.model,
     },
+    zhipu: {
+      apiKey: "",
+      baseUrl: config.zhipu.baseUrl,
+      model: config.zhipu.model,
+      dimensions: config.zhipu.dimensions,
+    },
     azure: {
       key: "",
       region: config.azure.region,
@@ -152,6 +159,12 @@ export const SettingsPage = forwardRef<SettingsPageHandle, SettingsPageProps>(fu
         baseUrl: config.deepseek.baseUrl,
         model: config.deepseek.model,
       },
+      zhipu: {
+        apiKey: "",
+        baseUrl: config.zhipu.baseUrl,
+        model: config.zhipu.model,
+        dimensions: config.zhipu.dimensions,
+      },
       azure: {
         key: "",
         region: config.azure.region,
@@ -175,6 +188,12 @@ export const SettingsPage = forwardRef<SettingsPageHandle, SettingsPageProps>(fu
         deepseek: {
           ...form.deepseek,
           apiKey: form.deepseek.apiKey?.trim() || undefined,
+        },
+        zhipu: {
+          ...form.zhipu,
+          apiKey: form.zhipu.apiKey?.trim() || undefined,
+          baseUrl: form.zhipu.baseUrl.trim(),
+          model: form.zhipu.model.trim(),
         },
         azure: {
           ...form.azure,
@@ -245,13 +264,16 @@ export const SettingsPage = forwardRef<SettingsPageHandle, SettingsPageProps>(fu
     });
   }
 
-  async function clearKey(kind: "deepseek" | "azure") {
+  async function clearKey(kind: "deepseek" | "zhipu" | "azure") {
     setMessage(null);
     setError(null);
     try {
-      const nextConfig = kind === "deepseek" ? await clearDeepSeekKey() : await clearAzureKey();
+      const nextConfig =
+        kind === "deepseek" ? await clearDeepSeekKey() : kind === "zhipu" ? await clearZhipuKey() : await clearAzureKey();
       onConfigChange(nextConfig);
-      setMessage(kind === "deepseek" ? "DeepSeek Key 已清除。" : "Azure Key 已清除。");
+      setMessage(
+        kind === "deepseek" ? "DeepSeek Key 已清除。" : kind === "zhipu" ? "智谱 Key 已清除。" : "Azure Key 已清除。",
+      );
     } catch (caught) {
       setError(caught as AppError);
     }
@@ -533,6 +555,97 @@ export const SettingsPage = forwardRef<SettingsPageHandle, SettingsPageProps>(fu
                   <KeyRound size={16} />
                   清除 DeepSeek Key
                 </button>
+              </div>
+
+              <div className="settings-engine-section">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <label className={labelClassName}>教师案例 Embedding 模型</label>
+                    <h3 className="mt-1 text-sm font-bold">智谱 embedding-3</h3>
+                  </div>
+                  <span className={`settings-key-status ${config.zhipu.apiKeyConfigured ? "is-ready" : "is-missing"}`}>
+                    <CheckCircle2 size={14} />
+                    {config.zhipu.apiKeyConfigured ? "Key 已配置" : "Key 未配置"}
+                  </span>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="grid gap-2 md:col-span-2">
+                    <span className={labelClassName}>智谱 API Key</span>
+                    <input
+                      type="password"
+                      value={form.zhipu.apiKey}
+                      placeholder={config.zhipu.apiKeyConfigured ? "保持为空则继续使用已保存 Key" : "Zhipu API Key"}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          zhipu: { ...current.zhipu, apiKey: event.target.value },
+                        }))
+                      }
+                      className={inputClassName}
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className={labelClassName}>Base URL</span>
+                    <input
+                      value={form.zhipu.baseUrl}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          zhipu: { ...current.zhipu, baseUrl: event.target.value },
+                        }))
+                      }
+                      className={inputClassName}
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className={labelClassName}>模型</span>
+                    <input
+                      value={form.zhipu.model}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          zhipu: { ...current.zhipu, model: event.target.value },
+                        }))
+                      }
+                      className={inputClassName}
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className={labelClassName}>向量维度</span>
+                    <select
+                      value={form.zhipu.dimensions}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          zhipu: {
+                            ...current.zhipu,
+                            dimensions: Number(event.target.value) as SaveAppConfigInput["zhipu"]["dimensions"],
+                          },
+                        }))
+                      }
+                      className={selectClassName}
+                    >
+                      <option value={256}>256</option>
+                      <option value={512}>512</option>
+                      <option value={1024}>1024</option>
+                      <option value={2048}>2048</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button type="button" onClick={() => void clearKey("zhipu")} className="settings-clear-button">
+                    <KeyRound size={16} />
+                    清除智谱 Key
+                  </button>
+                  <p className="self-center text-xs leading-5 opacity-60">
+                    教师案例重建 Embedding 和 Top-K 检索使用智谱接口；Key 仅保存在本地配置。
+                  </p>
+                </div>
               </div>
 
               <div className="settings-engine-section">

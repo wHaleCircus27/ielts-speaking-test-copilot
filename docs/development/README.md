@@ -11,7 +11,7 @@
 - 设置页已提供 DeepSeek `/models` 连通性测试，展示 `availableModels` 和当前模型可用状态。
 - MVP 2 媒体导入与转码已完成基础链路。
 - MVP 3 已代码收口：接入 Azure Speech SDK continuous mode 长音频发音评估、逐词 transcript、停顿标注、低分词标注、点击跳转和播放高亮。
-- MVP 4 教师 RAG 仍在后续范围。
+- MVP 4 教师 RAG 已接入教师案例 CRUD、智谱 `embedding-3` 向量重建、本地 Top-K 检索和 RAG Prompt 注入准备层；真实智谱 Key 验证 deferred。
 - 当前自动化验证记录：`pnpm typecheck`、`pnpm test`、`pnpm build`、`cd src-tauri && cargo test` 均通过。
 - 当前 deferred 人工验收：配置真实 Azure Speech Key 后，用 30 秒以上 WAV 验证 continuous pronunciation assessment。
 

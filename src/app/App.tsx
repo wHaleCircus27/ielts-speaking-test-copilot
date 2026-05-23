@@ -33,6 +33,7 @@ import {
 import { CorpusPage } from "../features/corpus/CorpusPage";
 import { SettingsPage } from "../features/settings/SettingsPage";
 import { getAppConfig } from "../lib/config";
+import { mapTeacherCaseMatchesToRagExamples, searchTeacherCases } from "../lib/corpus";
 import { gradeSpeaking } from "../lib/grading";
 import { getMediaMetadata, selectMediaFile, transcodeMedia } from "../lib/media";
 import { assessPronunciation, validateAzureConfig } from "../lib/speech";
@@ -332,11 +333,12 @@ export function App() {
     setLoading(true);
     setWorkspaceError(null);
     try {
+      const ragExamples = await loadRagExamplesForGrading(input.answer);
       const gradeResult = await gradeSpeaking({
         text: input.answer,
         part: input.part,
         question: input.question.trim() || undefined,
-        ragExamples: [],
+        ragExamples,
       });
       addRecord(input.title, input.fileName, mapGradeResultToWorkspaceResult(gradeResult, input.answer));
       setPendingMediaPath("");
@@ -344,6 +346,19 @@ export function App() {
       setWorkspaceError(error as AppError);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadRagExamplesForGrading(answer: string) {
+    if (!previewConfig.zhipu.apiKeyConfigured) {
+      return [];
+    }
+
+    try {
+      const matches = await searchTeacherCases(answer, 3);
+      return mapTeacherCaseMatchesToRagExamples(matches);
+    } catch {
+      return [];
     }
   }
 

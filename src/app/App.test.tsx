@@ -2,14 +2,28 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { getAppConfig } from "../lib/config";
+import { searchTeacherCases } from "../lib/corpus";
 import { gradeSpeaking } from "../lib/grading";
 import { getMediaMetadata, selectMediaFile, transcodeMedia } from "../lib/media";
 import { assessPronunciation, validateAzureConfig } from "../lib/speech";
 import { invokeCommand } from "../lib/tauri";
 import { defaultPublicConfig, type PublicAppConfig } from "../types/config";
+import type { TeacherCaseMatch } from "../types/corpus";
 
 vi.mock("../lib/config", () => ({
   getAppConfig: vi.fn(),
+}));
+
+vi.mock("../lib/corpus", () => ({
+  mapTeacherCaseMatchesToRagExamples: vi.fn((matches: TeacherCaseMatch[]) =>
+    matches.slice(0, 3).map((match) => ({
+      originalText: match.case.originalText,
+      revisedText: match.case.revisedText,
+      teacherComment: match.case.teacherComment,
+      scoringPreference: match.case.scoringPreference,
+    })),
+  ),
+  searchTeacherCases: vi.fn(),
 }));
 
 vi.mock("../lib/grading", () => ({
@@ -121,6 +135,7 @@ describe("App workspace", () => {
     });
     vi.clearAllMocks();
     mockReadyAppConfig();
+    vi.mocked(searchTeacherCases).mockResolvedValue([]);
   });
 
   it("starts without injecting the old demo correction record", async () => {

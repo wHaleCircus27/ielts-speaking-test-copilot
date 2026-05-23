@@ -3,6 +3,7 @@ import { AlertCircle, BookOpen, ClipboardCheck, Copy, FileText, RefreshCw, Spark
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { Field, SelectInput, TextInput } from "../../components/Field";
+import { mapTeacherCaseMatchesToRagExamples, searchTeacherCases } from "../../lib/corpus";
 import { gradeSpeaking } from "../../lib/grading";
 import type { PublicAppConfig } from "../../types/config";
 import type { AppError } from "../../types/errors";
@@ -45,11 +46,12 @@ export function GradingPage({ config, serviceReady }: GradingPageProps) {
     setError(null);
 
     try {
+      const ragExamples = await loadRagExamplesForGrading(answer, config.zhipu.apiKeyConfigured);
       const nextResult = await gradeSpeaking({
         text: answer,
         part,
         question: question.trim() || undefined,
-        ragExamples: [],
+        ragExamples,
       });
       setResult(nextResult);
     } catch (caught) {
@@ -174,6 +176,19 @@ export function GradingPage({ config, serviceReady }: GradingPageProps) {
       </aside>
     </div>
   );
+}
+
+async function loadRagExamplesForGrading(answer: string, zhipuApiKeyConfigured: boolean) {
+  if (!zhipuApiKeyConfigured) {
+    return [];
+  }
+
+  try {
+    const matches = await searchTeacherCases(answer, 3);
+    return mapTeacherCaseMatchesToRagExamples(matches);
+  } catch {
+    return [];
+  }
 }
 
 function ReadinessNotice({

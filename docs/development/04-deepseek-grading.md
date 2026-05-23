@@ -58,9 +58,10 @@ type GradeResult = {
 };
 
 type RagPromptExample = {
-  original_text: string;
-  revised_text: string;
-  teacher_comment: string;
+  originalText: string;
+  revisedText: string;
+  teacherComment: string;
+  scoringPreference?: string;
 };
 
 type ConfigValidationResult = {
@@ -106,7 +107,7 @@ type ConfigValidationResult = {
 - G-005：实现 `GradeResult` Schema 校验。
 - G-006：实现批改结果展示组件。
 - G-007：实现错误状态和重试入口。
-- G-008：为后续 RAG 预留 `ragExamples` Prompt 注入位置。
+- G-008：为后续 RAG 预留 `ragExamples` Prompt 注入位置。已支持传入 examples 后按 XML 注入，并兼容 Rust 侧旧 snake_case 字段。
 - G-009：接入 DeepSeek v4 模型枚举，默认 `deepseek-v4-flash`，设置页可切换 `deepseek-v4-pro`。
 - G-010：实现 `/models` 连通性测试，不输出 API Key。
 

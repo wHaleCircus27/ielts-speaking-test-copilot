@@ -3,8 +3,8 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
-mod grading;
 mod corpus;
+mod grading;
 mod media;
 mod speech;
 
@@ -98,6 +98,15 @@ struct StoredDeepSeekConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct StoredZhipuConfig {
+    pub(crate) api_key: Option<String>,
+    pub(crate) base_url: String,
+    pub(crate) model: String,
+    pub(crate) dimensions: u16,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct StoredAzureConfig {
     key: Option<String>,
     region: String,
@@ -111,11 +120,13 @@ struct StoredTypographyConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct StoredAppConfig {
+pub(crate) struct StoredAppConfig {
     theme: ThemeId,
     #[serde(default = "default_typography_config")]
     typography: StoredTypographyConfig,
     deepseek: StoredDeepSeekConfig,
+    #[serde(default = "default_zhipu_config")]
+    pub(crate) zhipu: StoredZhipuConfig,
     azure: StoredAzureConfig,
 }
 
@@ -125,6 +136,15 @@ struct PublicDeepSeekConfig {
     api_key_configured: bool,
     base_url: String,
     model: DeepSeekModel,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PublicZhipuConfig {
+    api_key_configured: bool,
+    base_url: String,
+    model: String,
+    dimensions: u16,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -147,6 +167,7 @@ struct PublicAppConfig {
     theme: ThemeId,
     typography: PublicTypographyConfig,
     deepseek: PublicDeepSeekConfig,
+    zhipu: PublicZhipuConfig,
     azure: PublicAzureConfig,
 }
 
@@ -157,6 +178,16 @@ struct SaveDeepSeekConfigInput {
     api_key: Option<String>,
     base_url: String,
     model: DeepSeekModel,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveZhipuConfigInput {
+    #[serde(default)]
+    api_key: Option<String>,
+    base_url: String,
+    model: String,
+    dimensions: u16,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -179,6 +210,7 @@ struct SaveAppConfigInput {
     theme: ThemeId,
     typography: SaveTypographyConfigInput,
     deepseek: SaveDeepSeekConfigInput,
+    zhipu: SaveZhipuConfigInput,
     azure: SaveAzureConfigInput,
 }
 
@@ -186,6 +218,15 @@ fn default_typography_config() -> StoredTypographyConfig {
     StoredTypographyConfig {
         font: FontPreference::System,
         font_size: FontSizePreference::Medium,
+    }
+}
+
+fn default_zhipu_config() -> StoredZhipuConfig {
+    StoredZhipuConfig {
+        api_key: None,
+        base_url: "https://open.bigmodel.cn/api/paas/v4".to_string(),
+        model: "embedding-3".to_string(),
+        dimensions: 1024,
     }
 }
 
@@ -199,6 +240,7 @@ impl Default for StoredAppConfig {
                 base_url: "https://api.deepseek.com".to_string(),
                 model: DeepSeekModel::DeepseekV4Flash,
             },
+            zhipu: default_zhipu_config(),
             azure: StoredAzureConfig {
                 key: None,
                 region: String::new(),
@@ -220,6 +262,12 @@ impl From<StoredAppConfig> for PublicAppConfig {
                 api_key_configured: value.deepseek.api_key.is_some(),
                 base_url: value.deepseek.base_url,
                 model: value.deepseek.model,
+            },
+            zhipu: PublicZhipuConfig {
+                api_key_configured: value.zhipu.api_key.is_some(),
+                base_url: value.zhipu.base_url,
+                model: value.zhipu.model,
+                dimensions: value.zhipu.dimensions,
             },
             azure: PublicAzureConfig {
                 key_configured: value.azure.key.is_some(),
@@ -254,11 +302,18 @@ fn save_app_config(app: AppHandle, input: SaveAppConfigInput) -> Result<PublicAp
     current.typography.font_size = input.typography.font_size;
     current.deepseek.base_url = input.deepseek.base_url.trim().to_string();
     current.deepseek.model = input.deepseek.model;
+    current.zhipu.base_url = input.zhipu.base_url.trim().to_string();
+    current.zhipu.model = input.zhipu.model.trim().to_string();
+    current.zhipu.dimensions = input.zhipu.dimensions;
     current.azure.region = input.azure.region.trim().to_string();
     current.azure.language = input.azure.language.trim().to_string();
 
     if let Some(api_key) = normalize_optional_secret(input.deepseek.api_key) {
         current.deepseek.api_key = Some(api_key);
+    }
+
+    if let Some(api_key) = normalize_optional_secret(input.zhipu.api_key) {
+        current.zhipu.api_key = Some(api_key);
     }
 
     if let Some(key) = normalize_optional_secret(input.azure.key) {
@@ -278,6 +333,14 @@ fn clear_deepseek_key(app: AppHandle) -> Result<PublicAppConfig, AppError> {
 }
 
 #[tauri::command]
+fn clear_zhipu_key(app: AppHandle) -> Result<PublicAppConfig, AppError> {
+    let mut current = read_config(&app)?;
+    current.zhipu.api_key = None;
+    write_config(&app, &current)?;
+    Ok(PublicAppConfig::from(current))
+}
+
+#[tauri::command]
 fn clear_azure_key(app: AppHandle) -> Result<PublicAppConfig, AppError> {
     let mut current = read_config(&app)?;
     current.azure.key = None;
@@ -286,17 +349,13 @@ fn clear_azure_key(app: AppHandle) -> Result<PublicAppConfig, AppError> {
 }
 
 #[tauri::command]
-fn validate_azure_config(
-    app: AppHandle,
-) -> Result<speech::AzureConfigValidationResult, AppError> {
+fn validate_azure_config(app: AppHandle) -> Result<speech::AzureConfigValidationResult, AppError> {
     let config = read_config(&app)?;
     Ok(speech::validate_azure_config(&config.azure))
 }
 
 #[tauri::command]
-async fn issue_azure_speech_token(
-    app: AppHandle,
-) -> Result<speech::AzureSpeechToken, AppError> {
+async fn issue_azure_speech_token(app: AppHandle) -> Result<speech::AzureSpeechToken, AppError> {
     let config = read_config(&app)?;
     speech::issue_azure_speech_token(&config.azure).await
 }
@@ -326,6 +385,24 @@ fn validate_config_input(input: &SaveAppConfigInput) -> Result<(), AppError> {
         ));
     }
 
+    if input.zhipu.base_url.trim().is_empty() {
+        return Err(AppError::new("CONFIG_INVALID", "智谱 Base URL 不能为空。"));
+    }
+
+    if input.zhipu.model.trim().is_empty() {
+        return Err(AppError::new(
+            "CONFIG_INVALID",
+            "智谱 Embedding 模型不能为空。",
+        ));
+    }
+
+    if !matches!(input.zhipu.dimensions, 256 | 512 | 1024 | 2048) {
+        return Err(AppError::new(
+            "CONFIG_INVALID",
+            "智谱 Embedding 维度必须是 256、512、1024 或 2048。",
+        ));
+    }
+
     if input.azure.language.trim().is_empty() {
         return Err(AppError::new("CONFIG_INVALID", "Azure language 不能为空。"));
     }
@@ -351,7 +428,7 @@ fn config_path(app: &AppHandle) -> Result<PathBuf, AppError> {
     Ok(dir.join("config.json"))
 }
 
-fn read_config(app: &AppHandle) -> Result<StoredAppConfig, AppError> {
+pub(crate) fn read_config(app: &AppHandle) -> Result<StoredAppConfig, AppError> {
     let path = config_path(app)?;
 
     if !path.exists() {
@@ -405,6 +482,7 @@ pub fn run() {
             get_app_config,
             save_app_config,
             clear_deepseek_key,
+            clear_zhipu_key,
             clear_azure_key,
             validate_azure_config,
             issue_azure_speech_token,
@@ -415,6 +493,8 @@ pub fn run() {
             corpus::get_teacher_case,
             corpus::update_teacher_case,
             corpus::delete_teacher_case,
+            corpus::rebuild_teacher_case_embedding,
+            corpus::search_teacher_cases,
             media::select_media_file,
             media::get_media_metadata,
             media::transcode_media
@@ -440,6 +520,12 @@ mod tests {
                 "baseUrl": "https://api.deepseek.com",
                 "model": "deepseek-v4-flash"
             },
+            "zhipu": {
+                "apiKey": "zhipu-test",
+                "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+                "model": "embedding-3",
+                "dimensions": 1024
+            },
             "azure": {
                 "key": "",
                 "region": "eastasia",
@@ -451,6 +537,10 @@ mod tests {
         assert_eq!(input.deepseek.api_key.as_deref(), Some("sk-test"));
         assert_eq!(input.deepseek.base_url, "https://api.deepseek.com");
         assert_eq!(input.deepseek.model.as_str(), "deepseek-v4-flash");
+        assert_eq!(input.zhipu.api_key.as_deref(), Some("zhipu-test"));
+        assert_eq!(input.zhipu.base_url, "https://open.bigmodel.cn/api/paas/v4");
+        assert_eq!(input.zhipu.model, "embedding-3");
+        assert_eq!(input.zhipu.dimensions, 1024);
         assert!(matches!(input.typography.font, FontPreference::Serif));
         assert!(matches!(
             input.typography.font_size,
@@ -464,5 +554,34 @@ mod tests {
             serde_json::from_value(serde_json::json!("deepseek-chat")).expect("legacy model");
 
         assert_eq!(model.as_str(), "deepseek-chat");
+    }
+
+    #[test]
+    fn reads_existing_config_without_zhipu_section() {
+        let config: StoredAppConfig = serde_json::from_value(serde_json::json!({
+            "theme": "theme-claude",
+            "typography": {
+                "font": "system",
+                "font_size": "medium"
+            },
+            "deepseek": {
+                "apiKey": null,
+                "baseUrl": "https://api.deepseek.com",
+                "model": "deepseek-v4-flash"
+            },
+            "azure": {
+                "key": null,
+                "region": "",
+                "language": "en-US"
+            }
+        }))
+        .expect("legacy config should deserialize");
+
+        assert_eq!(
+            config.zhipu.base_url,
+            "https://open.bigmodel.cn/api/paas/v4"
+        );
+        assert_eq!(config.zhipu.model, "embedding-3");
+        assert_eq!(config.zhipu.dimensions, 1024);
     }
 }

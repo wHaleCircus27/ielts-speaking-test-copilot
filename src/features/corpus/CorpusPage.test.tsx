@@ -5,6 +5,7 @@ import {
   createTeacherCase,
   deleteTeacherCase,
   listTeacherCases,
+  rebuildTeacherCaseEmbedding,
   updateTeacherCase,
 } from "../../lib/corpus";
 import type { TeacherCase } from "../../types/corpus";
@@ -13,6 +14,7 @@ vi.mock("../../lib/corpus", () => ({
   createTeacherCase: vi.fn(),
   deleteTeacherCase: vi.fn(),
   listTeacherCases: vi.fn(),
+  rebuildTeacherCaseEmbedding: vi.fn(),
   updateTeacherCase: vi.fn(),
 }));
 
@@ -37,6 +39,10 @@ describe("CorpusPage", () => {
       originalText: "I really enjoy English classes.",
     });
     vi.mocked(deleteTeacherCase).mockResolvedValue(undefined);
+    vi.mocked(rebuildTeacherCaseEmbedding).mockRejectedValue({
+      code: "ZHIPU_KEY_MISSING",
+      message: "请先在设置页配置智谱 API Key。",
+    });
   });
 
   it("creates a teacher case and refreshes the SQLite-backed list", async () => {
@@ -112,5 +118,24 @@ describe("CorpusPage", () => {
 
     expect(deleteTeacherCase).toHaveBeenCalledTimes(1);
     expect(deleteTeacherCase).toHaveBeenCalledWith("case-1");
+  });
+
+  it("shows Zhipu key missing when rebuilding a teacher case vector without configuration", async () => {
+    vi.mocked(listTeacherCases).mockResolvedValueOnce([firstTeacherCase]);
+
+    render(<CorpusPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("I like English because it is useful.")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "重建 Embedding" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("教师案例库操作失败")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("请先在设置页配置智谱 API Key。")).toBeInTheDocument();
+    expect(rebuildTeacherCaseEmbedding).toHaveBeenCalledWith("case-1");
   });
 });

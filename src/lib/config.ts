@@ -26,6 +26,12 @@ function readBrowserPreviewConfig(): PublicAppConfig {
         baseUrl: parsedConfig.deepseek?.baseUrl ?? defaultPublicConfig.deepseek.baseUrl,
         model: parsedConfig.deepseek?.model ?? defaultPublicConfig.deepseek.model,
       },
+      zhipu: {
+        apiKeyConfigured: Boolean(parsedConfig.zhipu?.apiKeyConfigured),
+        baseUrl: parsedConfig.zhipu?.baseUrl ?? defaultPublicConfig.zhipu.baseUrl,
+        model: parsedConfig.zhipu?.model ?? defaultPublicConfig.zhipu.model,
+        dimensions: parsedConfig.zhipu?.dimensions ?? defaultPublicConfig.zhipu.dimensions,
+      },
       azure: {
         keyConfigured: Boolean(parsedConfig.azure?.keyConfigured),
         region: parsedConfig.azure?.region ?? defaultPublicConfig.azure.region,
@@ -64,6 +70,12 @@ export function saveAppConfig(input: SaveAppConfigInput) {
         baseUrl: input.deepseek.baseUrl.trim(),
         model: input.deepseek.model,
       },
+      zhipu: {
+        apiKeyConfigured: Boolean(input.zhipu.apiKey?.trim()) || currentConfig.zhipu.apiKeyConfigured,
+        baseUrl: input.zhipu.baseUrl.trim(),
+        model: input.zhipu.model.trim(),
+        dimensions: input.zhipu.dimensions,
+      },
       azure: {
         keyConfigured: Boolean(input.azure.key?.trim()) || currentConfig.azure.keyConfigured,
         region: input.azure.region.trim(),
@@ -93,6 +105,23 @@ export function clearDeepSeekKey() {
   }
 
   return invokeCommand<PublicAppConfig>("clear_deepseek_key");
+}
+
+export function clearZhipuKey() {
+  if (!isTauriRuntimeAvailable()) {
+    const currentConfig = readBrowserPreviewConfig();
+    const nextConfig: PublicAppConfig = {
+      ...currentConfig,
+      zhipu: {
+        ...currentConfig.zhipu,
+        apiKeyConfigured: false,
+      },
+    };
+    writeBrowserPreviewConfig(nextConfig);
+    return Promise.resolve(nextConfig);
+  }
+
+  return invokeCommand<PublicAppConfig>("clear_zhipu_key");
 }
 
 export function clearAzureKey() {
