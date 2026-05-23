@@ -104,9 +104,21 @@ const mockSpeechAssessmentResult = {
       accuracyScore: 55,
       phonemes: [{ phoneme: "er", accuracyScore: 41 }],
     },
+    {
+      word: "today",
+      startMs: 3600,
+      durationMs: 500,
+      accuracyScore: 88,
+    },
+    {
+      word: "clearly",
+      startMs: 4200,
+      durationMs: 700,
+      accuracyScore: 84,
+    },
   ],
-  durationMs: 3300,
-  recognizedText: "Hello world.",
+  durationMs: 4900,
+  recognizedText: "Hello world today clearly.",
 };
 
 function mockReadyAppConfig() {
@@ -200,6 +212,7 @@ describe("App workspace", () => {
   });
 
   it("loads selected media metadata, transcodes it, and runs Azure speech assessment", async () => {
+    vi.mocked(gradeSpeaking).mockResolvedValue(mockGradeResult);
     vi.mocked(selectMediaFile).mockResolvedValue("/Users/test/音频 Sample.mp3");
     vi.mocked(getMediaMetadata).mockResolvedValue({
       path: "/Users/test/音频 Sample.mp3",
@@ -234,7 +247,7 @@ describe("App workspace", () => {
       expect(screen.getByText("Azure 语音评估完成")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Azure 长音频发音评估完成，已生成真实 transcript 和发音报告。")).toBeInTheDocument();
+    expect(screen.getByText("Azure 长音频发音评估完成，DeepSeek 已基于 transcript 补充词汇、语法和话题内容。")).toBeInTheDocument();
     expect(screen.getByText(/WAV \/ 16000 Hz \/ 1 channel \/ pcm_s16le/)).toBeInTheDocument();
     expect(screen.getByText(/\/Users\/test\/cache\/音频 Sample-123.wav/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hello" })).toBeInTheDocument();
@@ -244,7 +257,12 @@ describe("App workspace", () => {
     expect(validateAzureConfig).toHaveBeenCalled();
     expect(assessPronunciation).toHaveBeenCalledWith({
       wavPath: "/Users/test/cache/音频 Sample-123.wav",
-      referenceText: "Describe a happy event in your childhood",
+    });
+    expect(gradeSpeaking).toHaveBeenCalledWith({
+      text: "Hello world today clearly.",
+      question: "Describe a happy event in your childhood",
+      part: "part2",
+      ragExamples: [],
     });
   });
 

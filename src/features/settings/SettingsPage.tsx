@@ -269,10 +269,18 @@ export const SettingsPage = forwardRef<SettingsPageHandle, SettingsPageProps>(fu
     setError(null);
     try {
       const nextConfig =
-        kind === "deepseek" ? await clearDeepSeekKey() : kind === "zhipu" ? await clearZhipuKey() : await clearAzureKey();
+        kind === "deepseek"
+          ? await clearDeepSeekKey()
+          : kind === "zhipu"
+            ? await clearZhipuKey()
+            : await clearAzureKey();
       onConfigChange(nextConfig);
       setMessage(
-        kind === "deepseek" ? "DeepSeek Key 已清除。" : kind === "zhipu" ? "智谱 Key 已清除。" : "Azure Key 已清除。",
+        kind === "deepseek"
+          ? "DeepSeek Key 已清除。"
+          : kind === "zhipu"
+            ? "智谱 Key 已清除。"
+            : "Azure Key 已清除。",
       );
     } catch (caught) {
       setError(caught as AppError);
@@ -629,9 +637,6 @@ export const SettingsPage = forwardRef<SettingsPageHandle, SettingsPageProps>(fu
                       }
                       className={selectClassName}
                     >
-                      <option value={256}>256</option>
-                      <option value={512}>512</option>
-                      <option value={1024}>1024</option>
                       <option value={2048}>2048</option>
                     </select>
                   </label>

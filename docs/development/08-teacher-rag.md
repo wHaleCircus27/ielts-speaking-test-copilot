@@ -25,8 +25,8 @@
 
 - 本地 SQLite 存储案例元数据。
 - 第一阶段已接入 SQLite CRUD，通过系统 `sqlite3` 写入本地数据库。
-- 当前阶段已接入智谱 `embedding-3`：`POST https://open.bigmodel.cn/api/paas/v4/embeddings`，Bearer 鉴权，默认 `dimensions=1024`。
-- 当前阶段使用 `teacher_case_embeddings` SQLite 表存储 JSON 向量，并在 Rust 层做 cosine similarity Top-K；后续可迁移到 `sqlite-vec`。
+- 当前阶段已接入智谱 `embedding-3`：`POST https://open.bigmodel.cn/api/paas/v4/embeddings`，Bearer 鉴权，固定 `dimensions=2048`，请求超时 `45s`。
+- 当前阶段使用 `teacher_case_embeddings` SQLite 表存储 JSON 向量，并在 Rust 层做 cosine similarity Top-K；检索按 provider、model 和当前 `2048` 维度过滤向量，旧维度向量保留但需重建后参与检索，后续可迁移到 `sqlite-vec`。
 - 当前阶段已接入 RAG Prompt 准备层：案例清洗、长度截断、XML 转义、最多 3 个 `<example>`。
 - 案例入库和 Prompt 注入前做清洗，保留原文、修改后文本、教师评语和可选打分偏好。
 - RAG 检索失败或智谱 Key 未配置不阻塞普通批改。
@@ -105,13 +105,13 @@ type TeacherCaseMatch = {
 
 ## 风险与后续扩展
 
-- 当前向量存储使用 JSON 文本，数据量增大后应迁移到 `sqlite-vec`。
+- 当前向量存储使用 JSON 文本；`dimensions INTEGER` 字段可兼容 `2048` 维向量和历史旧维度记录，数据量增大后应迁移到 `sqlite-vec`。
 - 删除案例只能单个明确路径或记录操作，不做批量删除能力。
 - 后续可扩展 CSV 导入、标签、搜索和向量重建队列。
 
 ## 当前验证记录
 
-- 智谱 `embedding-3` 真实验证通过：`dimensions=1024`，单次 warmup 延迟约 `419.8 ms`，连续 5 次单次请求平均约 `210.4 ms`，p50 约 `209.1 ms`，p95 约 `263.8 ms`。
+- 历史智谱 `embedding-3` 真实验证通过：`dimensions=1024`，单次 warmup 延迟约 `419.8 ms`，连续 5 次单次请求平均约 `210.4 ms`，p50 约 `209.1 ms`，p95 约 `263.8 ms`；当前已切换为 `dimensions=2048`，需重新补充真实基准。
 - 3 条教师案例重建与 1 次查询的端到端基准通过：总耗时约 `760 ms`，查询延迟约 `188.8 ms`，三条案例 embedding 延迟约 `209.8 ms`、`184.2 ms`、`175.7 ms`。
 - Top-K 排序结果：`fluency-focus` `0.9249`，`grammar-focus` `0.8418`，`vocabulary-focus` `0.8266`。
 - 真实智谱 API Key 测试未输出 Key；结果用于本地开发基准，不写入仓库数据文件。

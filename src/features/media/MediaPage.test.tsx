@@ -121,6 +121,7 @@ describe("MediaPage", () => {
         pronunciationScore: 84,
         accuracyScore: 86,
         fluencyScore: 82,
+        prosodyScore: 78,
       },
       words: [
         { word: "Hello", startMs: 0, durationMs: 500, accuracyScore: 92 },

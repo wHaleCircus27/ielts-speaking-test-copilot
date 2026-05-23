@@ -3,6 +3,8 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
+pub(crate) const ZHIPU_EMBEDDING_DIMENSIONS: u16 = 2048;
+
 mod corpus;
 mod grading;
 mod media;
@@ -226,7 +228,7 @@ fn default_zhipu_config() -> StoredZhipuConfig {
         api_key: None,
         base_url: "https://open.bigmodel.cn/api/paas/v4".to_string(),
         model: "embedding-3".to_string(),
-        dimensions: 1024,
+        dimensions: ZHIPU_EMBEDDING_DIMENSIONS,
     }
 }
 
@@ -267,7 +269,7 @@ impl From<StoredAppConfig> for PublicAppConfig {
                 api_key_configured: value.zhipu.api_key.is_some(),
                 base_url: value.zhipu.base_url,
                 model: value.zhipu.model,
-                dimensions: value.zhipu.dimensions,
+                dimensions: ZHIPU_EMBEDDING_DIMENSIONS,
             },
             azure: PublicAzureConfig {
                 key_configured: value.azure.key.is_some(),
@@ -304,7 +306,7 @@ fn save_app_config(app: AppHandle, input: SaveAppConfigInput) -> Result<PublicAp
     current.deepseek.model = input.deepseek.model;
     current.zhipu.base_url = input.zhipu.base_url.trim().to_string();
     current.zhipu.model = input.zhipu.model.trim().to_string();
-    current.zhipu.dimensions = input.zhipu.dimensions;
+    current.zhipu.dimensions = ZHIPU_EMBEDDING_DIMENSIONS;
     current.azure.region = input.azure.region.trim().to_string();
     current.azure.language = input.azure.language.trim().to_string();
 
@@ -396,10 +398,10 @@ fn validate_config_input(input: &SaveAppConfigInput) -> Result<(), AppError> {
         ));
     }
 
-    if !matches!(input.zhipu.dimensions, 256 | 512 | 1024 | 2048) {
+    if input.zhipu.dimensions != ZHIPU_EMBEDDING_DIMENSIONS {
         return Err(AppError::new(
             "CONFIG_INVALID",
-            "智谱 Embedding 维度必须是 256、512、1024 或 2048。",
+            "智谱 Embedding 维度必须是 2048。",
         ));
     }
 
@@ -439,13 +441,15 @@ pub(crate) fn read_config(app: &AppHandle) -> Result<StoredAppConfig, AppError> 
         AppError::with_detail("CONFIG_READ_FAILED", "读取配置失败。", error.to_string())
     })?;
 
-    serde_json::from_str(&raw).map_err(|error| {
+    let mut config: StoredAppConfig = serde_json::from_str(&raw).map_err(|error| {
         AppError::with_detail(
             "CONFIG_PARSE_FAILED",
             "配置文件格式错误。",
             error.to_string(),
         )
-    })
+    })?;
+    config.zhipu.dimensions = ZHIPU_EMBEDDING_DIMENSIONS;
+    Ok(config)
 }
 
 fn write_config(app: &AppHandle, config: &StoredAppConfig) -> Result<(), AppError> {
@@ -524,7 +528,7 @@ mod tests {
                 "apiKey": "zhipu-test",
                 "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
                 "model": "embedding-3",
-                "dimensions": 1024
+                "dimensions": 2048
             },
             "azure": {
                 "key": "",
@@ -540,7 +544,7 @@ mod tests {
         assert_eq!(input.zhipu.api_key.as_deref(), Some("zhipu-test"));
         assert_eq!(input.zhipu.base_url, "https://open.bigmodel.cn/api/paas/v4");
         assert_eq!(input.zhipu.model, "embedding-3");
-        assert_eq!(input.zhipu.dimensions, 1024);
+        assert_eq!(input.zhipu.dimensions, ZHIPU_EMBEDDING_DIMENSIONS);
         assert!(matches!(input.typography.font, FontPreference::Serif));
         assert!(matches!(
             input.typography.font_size,
@@ -582,6 +586,6 @@ mod tests {
             "https://open.bigmodel.cn/api/paas/v4"
         );
         assert_eq!(config.zhipu.model, "embedding-3");
-        assert_eq!(config.zhipu.dimensions, 1024);
+        assert_eq!(config.zhipu.dimensions, ZHIPU_EMBEDDING_DIMENSIONS);
     }
 }

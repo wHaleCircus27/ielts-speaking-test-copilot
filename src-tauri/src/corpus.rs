@@ -1,4 +1,4 @@
-use crate::{read_config, AppError, StoredZhipuConfig};
+use crate::{read_config, AppError, StoredZhipuConfig, ZHIPU_EMBEDDING_DIMENSIONS};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::fs;
@@ -146,7 +146,7 @@ async fn search_teacher_cases_at_path(
     initialize_teacher_cases_schema(db_path)?;
     validate_teacher_case_search_request(&query_text, top_k)?;
     let query_embedding = request_zhipu_embedding(config, query_text.trim()).await?;
-    let stored_embeddings = list_ready_teacher_case_embeddings_at_path(db_path)?;
+    let stored_embeddings = list_ready_teacher_case_embeddings_at_path(db_path, config)?;
     let mut matches = stored_embeddings
         .into_iter()
         .filter(|stored_embedding| stored_embedding.embedding.len() == query_embedding.len())
@@ -481,9 +481,9 @@ struct TeacherCaseEmbeddingJsonRow {
 
 fn list_ready_teacher_case_embeddings_at_path(
     db_path: &Path,
+    config: &StoredZhipuConfig,
 ) -> Result<Vec<StoredTeacherCaseEmbedding>, AppError> {
-    let output = run_sqlite_statement(
-        db_path,
+    let sql = format!(
         r#"
         SELECT json_object(
             'caseId', teacher_case_embeddings.case_id,
@@ -491,9 +491,15 @@ fn list_ready_teacher_case_embeddings_at_path(
         )
         FROM teacher_case_embeddings
         INNER JOIN teacher_cases ON teacher_cases.id = teacher_case_embeddings.case_id
-        WHERE teacher_cases.embedding_status = 'ready';
+        WHERE teacher_cases.embedding_status = 'ready'
+            AND teacher_case_embeddings.provider = 'zhipu'
+            AND teacher_case_embeddings.model = {model}
+            AND teacher_case_embeddings.dimensions = {dimensions};
         "#,
-    )?;
+        model = sqlite_text_literal(&config.model),
+        dimensions = config.dimensions,
+    );
+    let output = run_sqlite_statement(db_path, &sql)?;
 
     output
         .lines()
@@ -560,7 +566,7 @@ async fn request_zhipu_embedding(
     let validation = validate_zhipu_embedding_config(config)?;
     let endpoint = zhipu_embeddings_endpoint(&validation.base_url)?;
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(45))
         .build()
         .map_err(|error| {
             AppError::with_detail(
@@ -671,10 +677,10 @@ fn validate_zhipu_embedding_config(
             "智谱 Embedding 模型不能为空。",
         ));
     }
-    if !matches!(config.dimensions, 256 | 512 | 1024 | 2048) {
+    if config.dimensions != ZHIPU_EMBEDDING_DIMENSIONS {
         return Err(AppError::new(
             "ZHIPU_DIMENSIONS_INVALID",
-            "智谱 Embedding 维度必须是 256、512、1024 或 2048。",
+            "智谱 Embedding 维度必须是 2048。",
         ));
     }
 
@@ -949,7 +955,7 @@ mod tests {
             api_key: None,
             base_url: "https://open.bigmodel.cn/api/paas/v4".to_string(),
             model: "embedding-3".to_string(),
-            dimensions: 1024,
+            dimensions: ZHIPU_EMBEDDING_DIMENSIONS,
         })
         .expect_err("missing key should fail before network");
         assert_eq!(missing_key_error.code, "ZHIPU_KEY_MISSING");
@@ -986,28 +992,90 @@ mod tests {
             api_key: Some("zhipu-test".to_string()),
             base_url: "https://open.bigmodel.cn/api/paas/v4".to_string(),
             model: "embedding-3".to_string(),
-            dimensions: 4,
+            dimensions: ZHIPU_EMBEDDING_DIMENSIONS,
         };
+        let embedding = vec![1.0; ZHIPU_EMBEDDING_DIMENSIONS as usize];
 
         upsert_teacher_case_embedding_at_path(
             &db_path,
             &created.id,
-            &[1.0, 0.0, 0.0, 0.0],
+            &embedding,
             &config,
         )
         .expect("store embedding");
         set_teacher_case_embedding_status_at_path(&db_path, &created.id, EmbeddingStatus::Ready)
             .expect("ready status");
         let embeddings =
-            list_ready_teacher_case_embeddings_at_path(&db_path).expect("list ready embeddings");
+            list_ready_teacher_case_embeddings_at_path(&db_path, &config)
+                .expect("list ready embeddings");
         assert_eq!(embeddings.len(), 1);
         assert_eq!(embeddings[0].case_id, created.id);
-        assert_eq!(embeddings[0].embedding, vec![1.0, 0.0, 0.0, 0.0]);
+        assert_eq!(embeddings[0].embedding, embedding);
 
         delete_teacher_case_embedding_at_path(&db_path, &created.id).expect("clear embedding");
         let embeddings_after_clear =
-            list_ready_teacher_case_embeddings_at_path(&db_path).expect("list after clear");
+            list_ready_teacher_case_embeddings_at_path(&db_path, &config)
+                .expect("list after clear");
         assert!(embeddings_after_clear.is_empty());
+
+        let _ = std::fs::remove_file(db_path);
+    }
+
+    #[test]
+    fn filters_ready_embeddings_by_current_provider_model_and_dimensions() {
+        let db_path = temp_db_path("teacher-case-embedding-dimension-filter");
+        let old_dimension_case =
+            create_teacher_case_at_path(&db_path, valid_input("I enjoy reading."))
+                .expect("create old dimension case");
+        let current_dimension_case =
+            create_teacher_case_at_path(&db_path, valid_input("I enjoy speaking English."))
+                .expect("create current dimension case");
+        let old_dimension_config = StoredZhipuConfig {
+            api_key: Some("zhipu-test".to_string()),
+            base_url: "https://open.bigmodel.cn/api/paas/v4".to_string(),
+            model: "embedding-3".to_string(),
+            dimensions: 1024,
+        };
+        let current_dimension_config = StoredZhipuConfig {
+            api_key: Some("zhipu-test".to_string()),
+            base_url: "https://open.bigmodel.cn/api/paas/v4".to_string(),
+            model: "embedding-3".to_string(),
+            dimensions: ZHIPU_EMBEDDING_DIMENSIONS,
+        };
+
+        upsert_teacher_case_embedding_at_path(
+            &db_path,
+            &old_dimension_case.id,
+            &vec![0.5; old_dimension_config.dimensions as usize],
+            &old_dimension_config,
+        )
+        .expect("store old dimension embedding");
+        upsert_teacher_case_embedding_at_path(
+            &db_path,
+            &current_dimension_case.id,
+            &vec![1.0; current_dimension_config.dimensions as usize],
+            &current_dimension_config,
+        )
+        .expect("store current dimension embedding");
+        set_teacher_case_embedding_status_at_path(
+            &db_path,
+            &old_dimension_case.id,
+            EmbeddingStatus::Ready,
+        )
+        .expect("old ready status");
+        set_teacher_case_embedding_status_at_path(
+            &db_path,
+            &current_dimension_case.id,
+            EmbeddingStatus::Ready,
+        )
+        .expect("current ready status");
+
+        let embeddings =
+            list_ready_teacher_case_embeddings_at_path(&db_path, &current_dimension_config)
+                .expect("list current embeddings");
+
+        assert_eq!(embeddings.len(), 1);
+        assert_eq!(embeddings[0].case_id, current_dimension_case.id);
 
         let _ = std::fs::remove_file(db_path);
     }

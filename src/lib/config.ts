@@ -1,7 +1,13 @@
 import { invokeCommand } from "./tauri";
-import { defaultPublicConfig, type PublicAppConfig, type SaveAppConfigInput } from "../types/config";
+import {
+  defaultPublicConfig,
+  type PublicAppConfig,
+  type SaveAppConfigInput,
+  type ZhipuEmbeddingDimensions,
+} from "../types/config";
 
 const browserPreviewConfigStorageKey = "ielts-speaking-test-copilot.preview-config";
+const zhipuEmbeddingDimensions: ZhipuEmbeddingDimensions = 2048;
 
 function isTauriRuntimeAvailable() {
   return "__TAURI_INTERNALS__" in window;
@@ -30,7 +36,7 @@ function readBrowserPreviewConfig(): PublicAppConfig {
         apiKeyConfigured: Boolean(parsedConfig.zhipu?.apiKeyConfigured),
         baseUrl: parsedConfig.zhipu?.baseUrl ?? defaultPublicConfig.zhipu.baseUrl,
         model: parsedConfig.zhipu?.model ?? defaultPublicConfig.zhipu.model,
-        dimensions: parsedConfig.zhipu?.dimensions ?? defaultPublicConfig.zhipu.dimensions,
+        dimensions: zhipuEmbeddingDimensions,
       },
       azure: {
         keyConfigured: Boolean(parsedConfig.azure?.keyConfigured),

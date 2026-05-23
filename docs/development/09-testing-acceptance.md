@@ -57,6 +57,7 @@
 - 该目录仅用于人工验收、本地调试和临时测试样本，例如音频、视频、压缩包或格式兼容性样本。
 - 该目录不属于产品运行数据或发布资产，已加入 `.gitignore`，不应提交到仓库。
 - 自动化测试应优先使用 mock、fixture 或小型可审查样本；真实媒体样本默认只在本地 `test-resource/` 中使用。
+- Azure Speech 真实 Key 预检可读取 `test-resource/azureSpeechKey.txt` 或 `AZURE_SPEECH_KEY`，预检输出不得包含 Key 或短期 token。
 
 ## MVP 验收清单
 
@@ -87,6 +88,8 @@
 - 分数低于 60 的词下划线。
 - 点击单词可跳转。
 - 播放时当前词高亮不卡顿。
+- `ProsodyScore` 展示为韵律自然度（Prosody）。
+- 配置 DeepSeek 后，可基于 transcript、题目和 RAG 案例得到 vocabulary、grammar、topic 文本维度；失败时不阻塞发音评估。
 - 当前收口标准：微软文档一致性、SDK 调用形态和 mock 自动化验证通过。
 - Deferred：真实 Azure API Key、region、真实 token、真实 30 秒以上 WAV 上传验收；获得 Azure Speech Key 后再补 continuous pronunciation assessment、点击跳转和播放高亮人工验收。
 
@@ -97,6 +100,14 @@
 - 批改 Prompt 支持最多 3 个 XML `<example>`，并做清洗、截断和 XML 转义。
 - RAG 检索成功时自动注入最多 3 个相似案例；智谱 Key 缺失或检索失败时不阻塞普通批改。
 - Deferred：用户提供智谱 API Key 后，补真实 `embedding-3` 重建和 Top-K 人工验收；后续再迁移 `sqlite-vec`。
+
+### Azure 真实 Key 预检
+
+- 执行 `pnpm azure:speech-preflight -- --region <Azure Speech region> --language en-US`。
+- 默认从 `test-resource/azureSpeechKey.txt` 读取 Key；也可用 `AZURE_SPEECH_KEY` 环境变量，或通过 `--key-file` 指定本地多 Key 文件。
+- 默认检查 `test-resource/speakTest-afconvert-16k-mono.wav` 和 `test-resource/speakTest-nvidia-asr.wav`。
+- 通过标准：Azure token endpoint 返回 2xx、短期 token 非空、两个 WAV 均为 `16kHz / mono / 16-bit PCM`。
+- 记录标准：只记录 region、language、音频文件名、HTTP 状态和是否通过，不记录 Azure Key 或短期 token。
 
 ## 发布前检查
 
@@ -117,13 +128,18 @@
 - continuous mode 不要求 `EnableMiscue`，MVP 3 不验收遗漏/插入。
 - Azure Key 不传给前端，验证位置：`src-tauri/src/speech.rs` 的 `issue_azure_speech_token`。
 - Azure detailed JSON 映射、逐词 token、停顿、低分词、音素错误 tooltip、当前词查找、媒体页和主工作台 mock UI 流程均有自动化测试。
+- DeepSeek JSON 清洗、Schema、RAG Prompt 注入和媒体链路自动文本评分均有自动化测试。
 
 ## 当前验证记录
 
 - `pnpm typecheck` 通过。
 - `pnpm test` 通过：7 个测试文件，27 个测试，覆盖 MVP 3 mock 验收、MVP 4 教师案例 CRUD 页面和 RAG 自动检索注入。
-- `cd src-tauri && cargo test` 通过：30 个 Rust 测试，覆盖既有 Rust 命令、MVP 4 SQLite CRUD、智谱配置校验、向量存储和 cosine similarity。
+- `cd src-tauri && cargo test` 通过：31 个 Rust 测试，覆盖既有 Rust 命令、MVP 4 SQLite CRUD、智谱配置校验、向量存储和 cosine similarity。
 - `pnpm build` 通过。
+- 新增 `pnpm mvp4:verify` 本地验收聚合命令，串行执行 `pnpm typecheck`、`pnpm test`、`cd src-tauri && cargo test`、`pnpm build`，并检查 Azure 长音频 WAV 样本格式。
+- 新增 `pnpm azure:speech-preflight`，用于获得 Azure Speech Key 后做本地 token 与 WAV 素材预检；脚本不打印 Key 或短期 token。
+- Azure Speech 真实 Key 连通性预检通过：使用本地 `test-resource/azureApikey.txt` 中第一条可用 Key、region `eastasia`、language `en-US` 请求 token endpoint，HTTP 200，短期 token 非空；默认两个 WAV 样本均为 `1 ch, 16000 Hz, Int16`。测试输出未包含 Azure Key 或短期 token。
+- DeepSeek 文本维度 mock 验证通过：Rust 测试覆盖合法 JSON、Markdown 包裹 JSON、缺字段、分数越界和 RAG Prompt 注入；主工作台 mock 验证媒体链路不向 Azure Speech 传 `referenceText`，并在 Azure transcript 可用后调用 `grade_speaking`。
 - MVP 3 mock 验证通过：Microsoft Learn Pronunciation Assessment detailed JSON 形态可映射为 `SpeechAssessmentResult`，逐词 transcript 可生成停顿 token、低分词状态、音素错误 tooltip 和当前播放词。
 - MVP 3 UI mock 验证通过：主工作台转码后会校验 Azure 配置、调用语音评估、生成历史报告；媒体页可转码后手动开始语音评估。
 - MVP 3 文档一致性验证通过：已对照微软 Pronunciation Assessment 文档核对 continuous mode、unscripted assessment、prosody `en-US` 限制、`EnableMiscue` 边界和 token 密钥边界。
@@ -133,10 +149,10 @@
 - 使用本地 `test-resource/deepseekApiKey.txt` 验证 DeepSeek `/models`，HTTP 200，返回 `deepseek-v4-flash`、`deepseek-v4-pro`。
 - 使用本地 `test-resource/deepseekApiKey.txt` 验证 DeepSeek `/embeddings` 与 `/v1/embeddings`，均返回 HTTP 404；测试未输出 API Key。
 - 使用 `deepseek-v4-flash` 验证 `/chat/completions` JSON 模式，HTTP 200，返回 `{"ok":true,"service":"deepseek"}`。
-- 使用本地 `test-resource/zhipuApiKey.txt` 验证智谱 `embedding-3`，`dimensions=1024`，warmup 延迟约 `419.8 ms`，5 次连续请求平均约 `210.4 ms`，p50 约 `209.1 ms`，p95 约 `263.8 ms`。
+- 历史使用本地 `test-resource/zhipuApiKey.txt` 验证智谱 `embedding-3`，`dimensions=1024`，warmup 延迟约 `419.8 ms`，5 次连续请求平均约 `210.4 ms`，p50 约 `209.1 ms`，p95 约 `263.8 ms`；当前实现已切换为固定 `dimensions=2048` 和 `45s` 请求超时，需重新补充真实基准。
 - 使用 3 条教师案例做端到端基准：总耗时约 `760 ms`，查询延迟约 `188.8 ms`，Top-K 结果依次为 `fluency-focus` `0.9249`、`grammar-focus` `0.8418`、`vocabulary-focus` `0.8266`。
 - 上述真实服务测试未输出、提交或写入 API Key。
-- Deferred 人工验收：获得真实 Azure Speech Key 后，配置真实 region，并使用 30 秒以上 WAV 验证 continuous pronunciation assessment、点击跳转和播放高亮。
+- Deferred 人工验收：获得真实 Azure Speech Key 后，先执行 `pnpm azure:speech-preflight -- --region <region> --language en-US`，再在 Tauri 设置页配置真实 region，并使用 30 秒以上 WAV 验证 continuous pronunciation assessment、点击跳转和播放高亮。
 - MVP 4 当前验证：教师案例 SQLite CRUD、前端新增/编辑/单条删除页面流程、智谱配置校验、向量存储清理、cosine similarity、RAG XML Prompt 注入工具、前端自动检索注入和真实智谱 embedding-3 基准测试均纳入记录；后续可继续补更多样本规模的批量基准。
 
 ## 风险与后续扩展

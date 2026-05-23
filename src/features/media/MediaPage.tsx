@@ -279,13 +279,15 @@ export function MediaPage() {
               <CheckCircle2 size={18} />
               <h3 className="text-lg font-semibold">Azure 语音评估完成</h3>
             </div>
-            <div className="grid gap-3 text-sm md:grid-cols-5">
+            <div className="grid gap-3 text-sm md:grid-cols-4">
               <ScoreBox label="Pron" value={speechAssessmentResult.overall.pronunciationScore} />
               <ScoreBox label="Accuracy" value={speechAssessmentResult.overall.accuracyScore} />
               <ScoreBox label="Fluency" value={speechAssessmentResult.overall.fluencyScore} />
-              <ScoreBox label="Completeness" value={speechAssessmentResult.overall.completenessScore} />
               <ScoreBox label="Prosody" value={speechAssessmentResult.overall.prosodyScore} />
             </div>
+            <p className="mt-3 text-xs leading-5 text-muted">
+              Prosody 为 Azure 官方韵律/语调自然度能力，覆盖重音、语调、语速和节奏；Completeness 更适合 scripted reading，自由作答下不作为主指标。
+            </p>
             <TranscriptTokenList tokens={transcriptTokens} onJumpToWord={jumpToTranscriptWord} />
           </Card>
         ) : null}

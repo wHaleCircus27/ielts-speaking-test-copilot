@@ -2,7 +2,7 @@
 
 ## 目标
 
-接入 Azure Pronunciation Assessment，对转码后的 WAV 进行发音评估，输出完整度、流利度、语调、逐词评分、逐词时间戳和音素级错误。
+接入 Azure Pronunciation Assessment，对转码后的 WAV 进行发音评估，输出发音准确度、流利度、韵律/语调自然度（Prosody）、逐词评分、逐词时间戳和音素级错误；词汇、语法和话题内容评分统一由 DeepSeek 基于 transcript、题目和教师案例库补充。
 
 ## 不做什么
 
@@ -27,6 +27,8 @@
 - Azure 错误统一映射为 `AppError`。
 - 逐词时间戳使用毫秒单位。
 - 默认按 IELTS 自由作答使用 unscripted assessment；`referenceText` 只作为可选 scripted assessment 输入。
+- Azure 官方 `ProsodyScore` 面向 `en-US`，描述重音、语调、语速、节奏、自然度和表达性；产品文案统一展示为“韵律自然度（Prosody）”。
+- Azure Speech SDK 1.46+ 不再直接提供 content assessment；本项目不再接入 Azure OpenAI / Foundry chat deployment，Vocabulary、Grammar、Topic 使用现有 DeepSeek 批改链路。
 
 ## 数据结构
 
@@ -71,6 +73,7 @@ type SpeechWordAssessment = {
 
 - `assess_pronunciation(request: SpeechAssessRequest) -> SpeechAssessmentResult` 当前由前端 SDK 封装完成，不作为 Tauri command 暴露。
 - `issue_azure_speech_token` 只返回短期 token、region、language，不返回本地保存的 Azure Key。
+- DeepSeek 文本评分复用 `grade_speaking(request: GradeRequest) -> GradeResult`，不新增 Azure OpenAI 内容评分 command。
 
 ## 任务拆分
 
@@ -84,19 +87,23 @@ type SpeechWordAssessment = {
 
 ## 当前实现进展
 
-- 主工作台媒体流程已改为：选择媒体 -> 转码 WAV -> 校验 Azure 配置 -> Azure 长音频发音评估 -> 生成真实 transcript 和历史报告。
+- 主工作台媒体流程已改为：选择媒体 -> 转码 WAV -> 校验 Azure 配置 -> Azure 长音频发音评估 -> DeepSeek 基于 transcript 补充词汇、语法和话题内容 -> 生成历史报告。
+- 主工作台媒体链路按 IELTS 自由作答使用 unscripted assessment，不再把题目传给 Azure Speech `referenceText`；题目仅传给 DeepSeek 文本评分。
 - 独立媒体页已提供转码后“开始语音评估”调试入口。
 - 新增 `src-tauri/src/speech.rs`、`src/lib/speech.ts`、`src/types/speech.ts`。
 - Azure token 请求 endpoint 为 `https://{region}.api.cognitive.microsoft.com/sts/v1.0/issueToken`。
 - `en-US` 下启用 prosody assessment；其他 language 不强制要求 prosody 返回。
+- DeepSeek 文本评分可选依赖 DeepSeek Key；配置缺失或请求失败时不阻塞 Azure Speech 发音评估。
 - continuous mode 不支持 `EnableMiscue`，遗漏和插入不作为 MVP3 当前必达能力。
 - MVP 3 真实 Azure Key 场景验收继续 deferred；当前仅以微软文档结构一致性和 mock 自动化验证作为收口依据。
+- 已新增真实 Key 本地预检脚本：`pnpm azure:speech-preflight -- --region <region> --language en-US`。脚本只验证 token endpoint 和 WAV 样本格式，不打印 Azure Key 或短期 token。
 
 ## 验收标准
 
 - 无 Azure Key 时不能提交评估。
 - 转码 WAV 可成功获得评估结果。
 - 逐词时间戳和评分不为空。
+- 配置 DeepSeek 后可基于 transcript、题目和 RAG 案例获得 vocabulary、grammar、topic 内容评分。
 - Azure 鉴权失败、网络失败、格式错误都有明确提示。
 
 ## 测试建议
@@ -104,22 +111,27 @@ type SpeechWordAssessment = {
 - 单元测试：Azure 响应映射。已覆盖，并使用 Microsoft Learn Pronunciation Assessment detailed JSON 形态构造 mock fixture，覆盖 `DisplayText`、`NBest`、`Words`、`PronunciationAssessment`、`Phonemes`、`Offset`、`Duration`。
 - 单元测试：错误码映射。
 - 集成测试：mock Azure 成功、401、超时、空结果。
+- 集成测试：mock DeepSeek 成功和失败；失败时仍保留 Azure Speech 发音报告。
 - 手动测试：短音频、长音频、低质量音频。
 
 ## 当前验证记录
 
 - `pnpm typecheck` 通过。
-- `pnpm test` 通过：7 个测试文件，24 个测试；MVP 3 mock 覆盖 Azure detailed JSON 映射、空词列表、非法 JSON、媒体页和主工作台 UI mock 评估流程。
+- `pnpm test` 通过：7 个测试文件，27 个测试；MVP 3 mock 覆盖 Azure detailed JSON 映射、空词列表、非法 JSON、媒体页和主工作台 UI mock 评估流程。
 - `pnpm build` 通过；存在 Azure Speech SDK 引入后的 chunk size warning。
-- `cd src-tauri && cargo test` 通过：20 个 Rust 测试。
+- `cd src-tauri && cargo test` 通过：31 个 Rust 测试。
 - 本次 MVP 3 收口不执行真实 Azure API Key、真实 token 和真实音频上传验证；后续拿到真实 Azure Speech Key 后，再使用配置好的 region 和 30 秒以上 WAV 验证 continuous pronunciation assessment、点击跳转和播放高亮。
+- 真实 Key 到位后的前置命令：`pnpm azure:speech-preflight -- --region <region> --language en-US`。默认使用 `test-resource/azureSpeechKey.txt` 或 `AZURE_SPEECH_KEY`，默认检查 `test-resource/speakTest-afconvert-16k-mono.wav` 与 `test-resource/speakTest-nvidia-asr.wav`。
+- Azure Speech 真实 Key 连通性预检通过：使用本地 `test-resource/azureApikey.txt` 中第一条可用 Key、region `eastasia`、language `en-US` 请求 token endpoint，HTTP 200，短期 token 非空；`test-resource/speakTest-afconvert-16k-mono.wav` 与 `test-resource/speakTest-nvidia-asr.wav` 均为 `1 ch, 16000 Hz, Int16`。测试输出未包含 Azure Key 或短期 token。
+- 媒体链路 mock 验证：Azure Speech 成功后会调用 DeepSeek `grade_speaking` 补充文本维度；DeepSeek 不可用时不阻塞发音报告。
 
 ## 微软文档一致性清单
 
 - 长音频：微软文档建议 30 秒以上音频使用 continuous mode；当前实现使用 `startContinuousRecognitionAsync`。
 - 结果结构：mock fixture 按 Microsoft Learn Pronunciation Assessment detailed JSON 形态覆盖 `NBest`、`Words`、`PronunciationAssessment`、`Phonemes`、`Offset`、`Duration`；`Offset` 和 `Duration` 按 100ns ticks 转换为毫秒。
-- 自由作答：`ReferenceText` 为空时按 unscripted assessment；当前实现将空 `referenceText` 传给 `PronunciationAssessmentConfig`。
-- Prosody：微软文档说明 prosody assessment 当前面向 `en-US`；当前实现仅在 `language === "en-US"` 时启用 `enableProsodyAssessment`。
+- 自由作答：`ReferenceText` 为空时按 unscripted assessment；主工作台媒体链路不向 Azure Speech 传题目文本。
+- Prosody：微软文档说明 prosody assessment 当前面向 `en-US`；当前实现仅在 `language === "en-US"` 时启用 `enableProsodyAssessment`，并在产品文案中解释为韵律自然度。
+- 内容评分：Vocabulary、Grammar、Topic 不由 Azure Speech 返回；当前实现由 DeepSeek `grade_speaking` 基于 transcript、题目和 RAG 案例完成，Topic 进入综合批语和改进建议。
 - 音素粒度：当前实现使用 `PronunciationAssessmentGranularity.Phoneme`，并解析 phoneme accuracy 用于 hover 提示。
 - 误读能力边界：continuous mode 不支持 `EnableMiscue`；当前不把遗漏/插入作为 MVP 3 必达项。
 - 密钥边界：Azure Key 只在 Rust command 层用于签发短期 token，前端只接收 token、region、language。

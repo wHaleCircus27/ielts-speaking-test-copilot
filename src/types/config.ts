@@ -10,6 +10,8 @@ export type FontPreference = "system" | "serif" | "space" | "mono";
 
 export type FontSizePreference = "small" | "medium" | "large";
 
+export type ZhipuEmbeddingDimensions = 2048;
+
 export type PublicAppConfig = {
   theme: ThemeId;
   typography: {
@@ -25,7 +27,7 @@ export type PublicAppConfig = {
     apiKeyConfigured: boolean;
     baseUrl: string;
     model: string;
-    dimensions: 256 | 512 | 1024 | 2048;
+    dimensions: ZhipuEmbeddingDimensions;
   };
   azure: {
     keyConfigured: boolean;
@@ -49,7 +51,7 @@ export type SaveAppConfigInput = {
     apiKey?: string;
     baseUrl: string;
     model: string;
-    dimensions: 256 | 512 | 1024 | 2048;
+    dimensions: ZhipuEmbeddingDimensions;
   };
   azure: {
     key?: string;
@@ -73,7 +75,7 @@ export const defaultPublicConfig: PublicAppConfig = {
     apiKeyConfigured: false,
     baseUrl: "https://open.bigmodel.cn/api/paas/v4",
     model: "embedding-3",
-    dimensions: 1024,
+    dimensions: 2048,
   },
   azure: {
     keyConfigured: false,

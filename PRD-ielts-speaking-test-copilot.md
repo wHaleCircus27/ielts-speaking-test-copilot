@@ -56,7 +56,8 @@
 ### 4.2 语音评估模块 (Speech Evaluation)
 *   **服务对接**：集成 **Azure Speech SDK**（发音评估模式）或 **SpeechSuper API**。
 *   **数据解析与呈现**：
-    *   **完整度/流利度/语调**：提取 API 返回的 `PronunciationAssessmentResult`。
+    *   **发音准确度/流利度/韵律自然度（Prosody）**：提取 API 返回的 `PronunciationAssessmentResult`，其中 Prosody 按 Azure 官方解释覆盖重音、语调、语速、节奏和自然度。
+    *   **词汇/语法/话题内容**：基于 DeepSeek 对 transcript、题目和教师案例库做 IELTS 文本维度判断，输出词汇、语法、话题内容和综合批语；不声明为 Azure Speech SDK 直接返回字段。
     *   **停顿高亮**：在文本中自动插入 `[Pause: X.Xs]`，若停顿超过 2 秒，标记为红色。
     *   **发音纠错**：对发音得分低于 60（百分制）的单词标记下划线，鼠标悬浮显示音素级别的错误分析（如：元音发音不饱满）。
 

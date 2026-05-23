@@ -892,20 +892,54 @@ function Workspace({
 
       const nextSpeechAssessmentResult = await assessPronunciation({
         wavPath: nextResult.outputPath,
-        referenceText: question.trim() || undefined,
+      });
+      const transcriptText = getTranscriptText(nextSpeechAssessmentResult) || nextSpeechAssessmentResult.recognizedText;
+      const transcriptGradeResult = await gradeTranscriptWithDeepSeek({
+        transcriptText,
+        question,
+        part,
       });
       setSpeechAssessmentResult(nextSpeechAssessmentResult);
-      const workspaceResult = mapSpeechAssessmentToWorkspaceResult(nextSpeechAssessmentResult);
+      const workspaceResult = mapSpeechAssessmentToWorkspaceResult(nextSpeechAssessmentResult, transcriptGradeResult);
       onAddRecord(
         customTitle.trim() || question.trim() || getFileNameFromPath(normalizedMediaPath).replace(/\.[^/.]+$/, ""),
         mediaMetadata?.fileName ?? getFileNameFromPath(normalizedMediaPath),
         workspaceResult,
       );
-      setMediaNotice("Azure 长音频发音评估完成，已生成真实 transcript 和发音报告。");
+      setMediaNotice(
+        transcriptGradeResult
+          ? "Azure 长音频发音评估完成，DeepSeek 已基于 transcript 补充词汇、语法和话题内容。"
+          : "Azure 长音频发音评估完成；DeepSeek 文本维度暂不可用，已保留 transcript 和发音报告。",
+      );
     } catch (error) {
       setMediaError(error as AppError);
     } finally {
       setMediaBusy(false);
+    }
+  }
+
+  async function gradeTranscriptWithDeepSeek(input: {
+    transcriptText: string;
+    question: string;
+    part: SpeakingPart;
+  }): Promise<GradeResult | null> {
+    const normalizedTranscript = input.transcriptText.trim();
+    if (!serviceReady || !config.deepseek.apiKeyConfigured || normalizedTranscript.length < 20) {
+      return null;
+    }
+
+    try {
+      const ragExamples = config.zhipu.apiKeyConfigured
+        ? mapTeacherCaseMatchesToRagExamples(await searchTeacherCases(normalizedTranscript, 3))
+        : [];
+      return await gradeSpeaking({
+        text: normalizedTranscript,
+        part: input.part,
+        question: input.question.trim() || undefined,
+        ragExamples,
+      });
+    } catch {
+      return null;
     }
   }
 
@@ -1935,57 +1969,72 @@ function mapGradeResultToWorkspaceResult(result: GradeResult, transcriptText: st
   };
 }
 
-function mapSpeechAssessmentToWorkspaceResult(result: SpeechAssessmentResult): WorkspaceResult {
+function mapSpeechAssessmentToWorkspaceResult(
+  result: SpeechAssessmentResult,
+  transcriptGradeResult?: GradeResult | null,
+): WorkspaceResult {
   const transcriptText = getTranscriptText(result);
   const transcript = splitTextIntoTranscript(transcriptText);
   const transcriptTokens = buildTranscriptTokens(result.words);
   const pronunciationScore = normalizeAzureScoreToBand(result.overall.pronunciationScore);
   const fluencyScore = normalizeAzureScoreToBand(result.overall.fluencyScore);
-  const accuracyScore = normalizeAzureScoreToBand(result.overall.accuracyScore);
-  const completenessScore = normalizeAzureScoreToBand(result.overall.completenessScore);
+  const textWorkspaceResult = transcriptGradeResult
+    ? mapGradeResultToWorkspaceResult(transcriptGradeResult, transcriptText)
+    : null;
   const lowAccuracyWords = result.words
     .filter((word) => word.accuracyScore !== undefined && word.accuracyScore < lowAccuracyThreshold)
     .slice(0, 8);
+  const pronunciationCorrections = lowAccuracyWords.map((word) => ({
+    original: word.word,
+    improved: word.word,
+    reason: `Azure 逐词 Accuracy 为 ${formatOptionalScore(word.accuracyScore)}，建议点击 transcript 回听并跟读。`,
+    category: "pronunciation" as const,
+  }));
+  const speechFeedback = "Azure 已基于转码后的 WAV 完成长音频发音评估。Pronunciation、Fluency 和 Prosody 来自真实音频；Vocabulary、Grammar 和 Topic 由 DeepSeek 基于 transcript、题目和教师案例判断。";
 
   return {
-    overallScore: pronunciationScore,
+    overallScore: textWorkspaceResult?.overallScore ?? pronunciationScore,
     fluencyScore: {
       score: fluencyScore,
       feedback: `Azure 长音频评估已完成。Fluency 原始分：${formatOptionalScore(result.overall.fluencyScore)}。`,
-      strengths: ["已基于真实音频生成逐词时间戳", "可结合播放器回听具体停顿和连读"],
-      improvements: ["优先复盘红色停顿标注", "对低分词进行跟读和重录"],
+      strengths: textWorkspaceResult
+        ? ["已基于真实音频生成逐词时间戳", ...textWorkspaceResult.fluencyScore.strengths.slice(0, 1)]
+        : ["已基于真实音频生成逐词时间戳", "可结合播放器回听具体停顿和连读"],
+      improvements: textWorkspaceResult
+        ? ["优先复盘红色停顿标注", ...textWorkspaceResult.fluencyScore.improvements.slice(0, 1)]
+        : ["优先复盘红色停顿标注", "对低分词进行跟读和重录"],
     },
-    lexicalScore: {
-      score: completenessScore,
-      feedback: `当前媒体链路聚焦发音与流利度；Completeness 原始分：${formatOptionalScore(result.overall.completenessScore)}。`,
-      strengths: ["语音内容已被 Azure 识别为 transcript", "可将 transcript 复制到文本批改链路继续做词句升级"],
-      improvements: ["如需词汇和语法细评，请使用手工文本模式提交 transcript", "补充题目上下文能帮助后续综合批改"],
+    lexicalScore: textWorkspaceResult?.lexicalScore ?? {
+      score: 0,
+      feedback: "DeepSeek 文本维度暂不可用；Azure Speech 不直接返回 vocabulary 评分。",
+      strengths: ["已保留 transcript，可稍后补跑 DeepSeek 文本评分"],
+      improvements: ["配置 DeepSeek Key 后可评估词汇范围、准确性和话题贴合度"],
     },
-    grammarScore: {
-      score: accuracyScore,
-      feedback: "当前媒体链路不直接做语法诊断；这里使用 Accuracy 作为临时参考分，避免伪造语法结论。",
-      strengths: ["发音准确度已有真实音频依据", "逐词评分可定位高风险词"],
-      improvements: ["语法问题需进入文本批改链路", "复盘 transcript 中的长句和重复表达"],
+    grammarScore: textWorkspaceResult?.grammarScore ?? {
+      score: 0,
+      feedback: "DeepSeek 文本维度暂不可用；Azure Speech 不直接返回 grammar 或 topic 内容评分。",
+      strengths: ["已保留 transcript，可稍后补跑 DeepSeek 文本评分"],
+      improvements: ["配置 DeepSeek Key 后可评估语法准确度、句式范围和内容展开"],
     },
     pronunciationScore: {
       score: pronunciationScore,
       feedback: [
         `Pronunciation 原始分：${formatOptionalScore(result.overall.pronunciationScore)}。`,
-        `Accuracy：${formatOptionalScore(result.overall.accuracyScore)}；Fluency：${formatOptionalScore(result.overall.fluencyScore)}；Prosody：${formatOptionalScore(result.overall.prosodyScore)}。`,
+        `Accuracy：${formatOptionalScore(result.overall.accuracyScore)}；Fluency：${formatOptionalScore(result.overall.fluencyScore)}；Prosody 韵律/语调自然度：${formatOptionalScore(result.overall.prosodyScore)}。`,
       ].join("\n"),
       strengths: ["已完成长音频 continuous assessment", "逐词评分、音素提示和时间戳可用于精听复盘"],
       improvements: lowAccuracyWords.length
         ? lowAccuracyWords.map((word) => `${word.word}: ${formatOptionalScore(word.accuracyScore)}`)
-        : ["未发现明显低于 60 分的单词", "继续关注停顿和语调自然度"],
+        : ["未发现明显低于 60 分的单词", "继续关注重音、语调、语速和节奏自然度"],
     },
-    keyCorrections: lowAccuracyWords.map((word) => ({
-      original: word.word,
-      improved: word.word,
-      reason: `Azure 逐词 Accuracy 为 ${formatOptionalScore(word.accuracyScore)}，建议点击 transcript 回听并跟读。`,
-      category: "pronunciation",
-    })),
-    generalFeedback: "Azure 已基于转码后的 WAV 完成长音频发音评估。请在 transcript 中点击低分词或停顿标记附近回听，优先修正影响流利度和发音清晰度的问题。",
-    modelAnswer: transcriptText || "Azure 未返回完整 transcript。",
+    keyCorrections: [
+      ...(textWorkspaceResult?.keyCorrections ?? []),
+      ...pronunciationCorrections,
+    ].slice(0, 12),
+    generalFeedback: textWorkspaceResult
+      ? `${textWorkspaceResult.generalFeedback}\n\n${speechFeedback}`
+      : "Azure 已基于转码后的 WAV 完成长音频发音评估。请在 transcript 中点击低分词或停顿标记附近回听；DeepSeek 文本维度暂不可用，因此词汇、语法和话题内容未生成结构化批语。",
+    modelAnswer: textWorkspaceResult?.modelAnswer ?? (transcriptText || "Azure 未返回完整 transcript。"),
     transcript,
     transcriptTokens,
     speechAssessment: result,

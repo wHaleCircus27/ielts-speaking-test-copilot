@@ -366,7 +366,7 @@ fn models_endpoint(base_url: &str) -> Result<String, AppError> {
 }
 
 fn build_system_prompt() -> &'static str {
-    r#"You are an expert IELTS Speaking examiner and a pragmatic speaking coach.
+    r##"You are an expert IELTS Speaking examiner and a pragmatic speaking coach.
 Score the answer according to IELTS Speaking public band descriptors.
 Return only a raw JSON object. Do not output Markdown. Do not use code fences.
 The JSON must match this exact shape:
@@ -382,7 +382,7 @@ The JSON must match this exact shape:
 Use 0-9 scores. Use half-band increments when appropriate.
 Explain vocabulary corrections with concrete reasons.
 The reconstructed answer must keep the student's original meaning and must not invent personal experiences.
-Do not reveal chain-of-thought. Write comments in Chinese, but keep corrected English examples in English."#
+Do not reveal chain-of-thought. Write comments in Chinese, but keep corrected English examples in English."##
 }
 
 fn build_user_prompt(request: &GradeRequest) -> String {
