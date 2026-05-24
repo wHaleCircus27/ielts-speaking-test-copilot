@@ -130,9 +130,11 @@
 - R-403：建立 mock DeepSeek、mock Azure、mock FFmpeg。
 - R-404：完成主题切换和播放同步手动验收。
 - R-405：检查日志和错误信息是否泄露密钥。
+- R-406：维护 UI 固化文档，UI 变更后同步 `docs/development/10-assessor-ui-redesign.md`，避免设计文档与当前代码实现漂移。
 
 ### 验收标准
 
 - 关键路径均有测试或人工验收记录。
 - 外部服务失败时都有明确 UI 状态。
 - API Key 不出现在日志、错误弹窗和前端源码中。
+- UI 文档能准确反映当前代码实现，相关开发文档均可索引到 `10-assessor-ui-redesign.md`。

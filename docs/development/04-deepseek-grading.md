@@ -29,6 +29,7 @@
 - 响应进入 JSON 清洗函数，再做 Schema 校验。
 - 校验失败时保留原始响应摘要用于调试，但不显示密钥。
 - 配置校验调用 DeepSeek `/models`，判断服务可达、当前模型是否在可用模型列表内，并返回 `availableModels`。
+- 文本批改在当前工作台 UI 中通过 `手工手写文本` 模式触发，输入区、按钮、结果 selector 和报告面板以 [10-assessor-ui-redesign.md](10-assessor-ui-redesign.md) 为准。
 
 ## 数据结构
 
@@ -117,6 +118,7 @@ type ConfigValidationResult = {
 - 模型返回 Markdown 包裹 JSON 时仍可解析。
 - 模型返回字段缺失时显示格式错误。
 - 空文本不能提交。
+- UI 中少于 20 字符、服务未连接或 DeepSeek Key 缺失时不能提交，并显示对应提示。
 - API Key 缺失时不发起请求。
 - `validate_deepseek_config` 成功时可展示服务返回的可用模型。
 - 当前模型不在 `/models` 返回列表内时，提示模型不可用而不是误报配置成功。

@@ -21,6 +21,7 @@
 
 - 使用 CSS variables 定义主题 token。
 - 根节点设置主题 class：`theme-claude`、`theme-animal`、`theme-glass`。
+- UI 固化规范见 [10-assessor-ui-redesign.md](10-assessor-ui-redesign.md)；应用壳、macOS 菜单栏、窗口、历史栏、状态栏和主题差异以当前代码实现为准。
 - Tailwind 使用 token 映射颜色、边框、圆角和阴影。
 - 主题值由配置模块持久化。
 - glass 主题将模糊半径控制在 12px 内，避免重绘成本过高。
@@ -53,6 +54,7 @@ type ThemeOption = {
 - 切换主题不导致页面布局错位。
 - 主要按钮、输入框、卡片在三套主题中都清晰可读。
 - `theme-glass` 不使用过高模糊半径。
+- 顶部 `mac-menu-bar`、`app-window`、`finder-sidebar`、`window-statusbar` 与 UI 固化文档一致。
 
 ## 测试建议
 
@@ -64,4 +66,3 @@ type ThemeOption = {
 
 - glass 主题与 Tauri vibrancy 需要后续在真实 macOS 设备上验证性能。
 - 动森风格容易影响信息密度，功能页应保持可扫描性，不使用过多装饰。
-

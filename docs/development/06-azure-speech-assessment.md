@@ -29,6 +29,7 @@
 - 默认按 IELTS 自由作答使用 unscripted assessment；`referenceText` 只作为可选 scripted assessment 输入。
 - Azure 官方 `ProsodyScore` 面向 `en-US`，描述重音、语调、语速、节奏、自然度和表达性；产品文案统一展示为“韵律自然度（Prosody）”。
 - Azure Speech SDK 1.46+ 不再直接提供 content assessment；本项目不再接入 Azure OpenAI / Foundry chat deployment，Vocabulary、Grammar、Topic 使用现有 DeepSeek 批改链路。
+- Azure 评分摘要、媒体评估状态、播放器和 transcript 展示以 [10-assessor-ui-redesign.md](10-assessor-ui-redesign.md) 的当前代码实现为 UI 验收依据。
 
 ## 数据结构
 
@@ -105,6 +106,7 @@ type SpeechWordAssessment = {
 - 逐词时间戳和评分不为空。
 - 配置 DeepSeek 后可基于 transcript、题目和 RAG 案例获得 vocabulary、grammar、topic 内容评分。
 - Azure 鉴权失败、网络失败、格式错误都有明确提示。
+- Tauri 桌面人工验收需在设置弹窗配置 Azure Key、region、language 后，用 30 秒以上 WAV 验证 continuous assessment、点击跳转和播放高亮。
 
 ## 测试建议
 
@@ -119,11 +121,12 @@ type SpeechWordAssessment = {
 - `pnpm typecheck` 通过。
 - `pnpm test` 通过：7 个测试文件，27 个测试；MVP 3 mock 覆盖 Azure detailed JSON 映射、空词列表、非法 JSON、媒体页和主工作台 UI mock 评估流程。
 - `pnpm build` 通过；存在 Azure Speech SDK 引入后的 chunk size warning。
-- `cd src-tauri && cargo test` 通过：31 个 Rust 测试。
-- 本次 MVP 3 收口不执行真实 Azure API Key、真实 token 和真实音频上传验证；后续拿到真实 Azure Speech Key 后，再使用配置好的 region 和 30 秒以上 WAV 验证 continuous pronunciation assessment、点击跳转和播放高亮。
+- `cd src-tauri && cargo test -- --test-threads=1` 通过：31 个 Rust 测试。曾出现一次并行执行时 MVP 4 corpus CRUD 单测偶发 `CORPUS_CASE_NOT_FOUND`，精确复跑和串行全量复跑均通过，暂不影响 MVP 3 链路验收结论。
+- 本次 MVP 3 CLI 验收不执行 Tauri 真实桌面 UI 人工流程；真实 continuous pronunciation assessment 上传、点击跳转和播放高亮继续 deferred。
 - 真实 Key 到位后的前置命令：`pnpm azure:speech-preflight -- --region <region> --language en-US`。默认使用 `test-resource/azureSpeechKey.txt` 或 `AZURE_SPEECH_KEY`，默认检查 `test-resource/speakTest-afconvert-16k-mono.wav` 与 `test-resource/speakTest-nvidia-asr.wav`。
 - Azure Speech 真实 Key 连通性预检通过：使用本地 `test-resource/azureApikey.txt` 中第一条可用 Key、region `eastasia`、language `en-US` 请求 token endpoint，HTTP 200，短期 token 非空；`test-resource/speakTest-afconvert-16k-mono.wav` 与 `test-resource/speakTest-nvidia-asr.wav` 均为 `1 ch, 16000 Hz, Int16`。测试输出未包含 Azure Key 或短期 token。
 - 媒体链路 mock 验证：Azure Speech 成功后会调用 DeepSeek `grade_speaking` 补充文本维度；DeepSeek 不可用时不阻塞发音报告。
+- 使用本地 `test-resource/deepseekApiKey.txt` 验证 DeepSeek 文本维度前置链路：`/models` HTTP 200，包含 `deepseek-v4-flash` 和 `deepseek-v4-pro`；`deepseek-v4-flash` `/chat/completions` JSON mode HTTP 200，返回预期 JSON。测试输出未包含 API Key。
 
 ## 微软文档一致性清单
 

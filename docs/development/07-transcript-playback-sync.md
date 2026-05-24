@@ -28,6 +28,7 @@
 - 主工作台使用 `ref` 保存 DOM 节点映射，通过 `transcript-word-active` class 切换高亮。
 - glass 主题下避免大面积 backdrop repaint。
 - 停顿阈值固定为 `2000ms`，低分词阈值固定为 `< 60`。
+- 词级 transcript、pause token、tooltip、点击跳转、当前词高亮和报告 selector 的 UI 规范见 [10-assessor-ui-redesign.md](10-assessor-ui-redesign.md)，以当前代码实现为准。
 
 ## 数据结构
 
@@ -79,6 +80,7 @@ type TranscriptToken =
 - hover 可看到音素错误信息。
 - 点击单词后播放器跳转到正确时间。
 - 播放中当前词高亮平滑。
+- 综合批语面板优先展示词级 transcript；无词级 token 时回退到句级时间戳列表，展示规则与 UI 固化文档一致。
 
 ## 测试建议
 

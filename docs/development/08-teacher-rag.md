@@ -30,6 +30,7 @@
 - 当前阶段已接入 RAG Prompt 准备层：案例清洗、长度截断、XML 转义、最多 3 个 `<example>`。
 - 案例入库和 Prompt 注入前做清洗，保留原文、修改后文本、教师评语和可选打分偏好。
 - RAG 检索失败或智谱 Key 未配置不阻塞普通批改。
+- 教师案例库在当前工作台左侧历史栏中作为固定入口 `教师案例库` 展示，UI 索引见 [10-assessor-ui-redesign.md](10-assessor-ui-redesign.md)。
 
 ## 数据结构
 
@@ -94,6 +95,7 @@ type TeacherCaseMatch = {
 - Embedding 成功后状态为 `ready`，并可检索相似案例。
 - Prompt 中最多注入 3 个案例，并做 XML 转义。
 - Embedding 或检索不可用时仍可普通批改。
+- 左侧 `教师案例库` 入口、语料页切换和单条删除约束需与 UI 固化文档一致。
 
 ## 测试建议
 

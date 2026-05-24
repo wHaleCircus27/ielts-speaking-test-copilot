@@ -4,6 +4,8 @@
 
 建立覆盖 MVP 全流程的测试矩阵和人工验收清单，确保文本批改、媒体转码、语音评估、播放同步和 RAG 都有明确通过标准。
 
+UI 验收以 [10-assessor-ui-redesign.md](10-assessor-ui-redesign.md) 为索引；当 UI 文档与代码不一致时，以当前代码实现为准，并同步更新 UI 固化文档。
+
 ## 不做什么
 
 - 不要求首版达到完整企业级 CI。
@@ -42,6 +44,7 @@
 - Azure 语音评估完整链路。
 - 播放同步和点击跳转。
 - RAG 注入效果。
+- UI 固化一致性：macOS 菜单、历史栏、工作台双栏、result selector、设置弹窗、帮助弹窗和三套主题与 `10-assessor-ui-redesign.md` 一致。
 
 ## Mock 策略
 
@@ -115,6 +118,7 @@
 - 真实外部服务连通性测试输出不包含 API Key。
 - 外部服务错误都有用户可理解提示。
 - 三套主题下主要页面可读可操作。
+- `10-assessor-ui-redesign.md` 与当前代码实现一致，相关开发文档均保留 UI 文档索引。
 - 不存在批量删除文件或目录的脚本。
 - README 或开发文档说明本地 FFmpeg 二进制准备方式。
 - README 和开发文档明确 `test-resource/` 仅为本地测试资源目录。
@@ -134,11 +138,12 @@
 
 - `pnpm typecheck` 通过。
 - `pnpm test` 通过：7 个测试文件，27 个测试，覆盖 MVP 3 mock 验收、MVP 4 教师案例 CRUD 页面和 RAG 自动检索注入。
-- `cd src-tauri && cargo test` 通过：31 个 Rust 测试，覆盖既有 Rust 命令、MVP 4 SQLite CRUD、智谱配置校验、向量存储和 cosine similarity。
+- `cd src-tauri && cargo test -- --test-threads=1` 通过：31 个 Rust 测试，覆盖既有 Rust 命令、MVP 4 SQLite CRUD、智谱配置校验、向量存储和 cosine similarity。曾出现一次并行执行时 MVP 4 corpus CRUD 单测偶发 `CORPUS_CASE_NOT_FOUND`，精确复跑和串行全量复跑均通过。
 - `pnpm build` 通过。
 - 新增 `pnpm mvp4:verify` 本地验收聚合命令，串行执行 `pnpm typecheck`、`pnpm test`、`cd src-tauri && cargo test`、`pnpm build`，并检查 Azure 长音频 WAV 样本格式。
 - 新增 `pnpm azure:speech-preflight`，用于获得 Azure Speech Key 后做本地 token 与 WAV 素材预检；脚本不打印 Key 或短期 token。
 - Azure Speech 真实 Key 连通性预检通过：使用本地 `test-resource/azureApikey.txt` 中第一条可用 Key、region `eastasia`、language `en-US` 请求 token endpoint，HTTP 200，短期 token 非空；默认两个 WAV 样本均为 `1 ch, 16000 Hz, Int16`。测试输出未包含 Azure Key 或短期 token。
+- 本次 MVP 3 CLI 链路验收通过：按开发文档边界跳过 Tauri 真实桌面 UI 人工流程，完成 mock 自动化、Rust command 层、生产构建、Azure token/WAV 预检和 DeepSeek 文本维度前置链路验证。
 - DeepSeek 文本维度 mock 验证通过：Rust 测试覆盖合法 JSON、Markdown 包裹 JSON、缺字段、分数越界和 RAG Prompt 注入；主工作台 mock 验证媒体链路不向 Azure Speech 传 `referenceText`，并在 Azure transcript 可用后调用 `grade_speaking`。
 - MVP 3 mock 验证通过：Microsoft Learn Pronunciation Assessment detailed JSON 形态可映射为 `SpeechAssessmentResult`，逐词 transcript 可生成停顿 token、低分词状态、音素错误 tooltip 和当前播放词。
 - MVP 3 UI mock 验证通过：主工作台转码后会校验 Azure 配置、调用语音评估、生成历史报告；媒体页可转码后手动开始语音评估。
@@ -152,7 +157,7 @@
 - 历史使用本地 `test-resource/zhipuApiKey.txt` 验证智谱 `embedding-3`，`dimensions=1024`，warmup 延迟约 `419.8 ms`，5 次连续请求平均约 `210.4 ms`，p50 约 `209.1 ms`，p95 约 `263.8 ms`；当前实现已切换为固定 `dimensions=2048` 和 `45s` 请求超时，需重新补充真实基准。
 - 使用 3 条教师案例做端到端基准：总耗时约 `760 ms`，查询延迟约 `188.8 ms`，Top-K 结果依次为 `fluency-focus` `0.9249`、`grammar-focus` `0.8418`、`vocabulary-focus` `0.8266`。
 - 上述真实服务测试未输出、提交或写入 API Key。
-- Deferred 人工验收：获得真实 Azure Speech Key 后，先执行 `pnpm azure:speech-preflight -- --region <region> --language en-US`，再在 Tauri 设置页配置真实 region，并使用 30 秒以上 WAV 验证 continuous pronunciation assessment、点击跳转和播放高亮。
+- Deferred 人工验收：在 Tauri 设置页配置真实 Azure Speech Key、region 和 language 后，使用 30 秒以上 WAV 验证 continuous pronunciation assessment、点击跳转和播放高亮。
 - MVP 4 当前验证：教师案例 SQLite CRUD、前端新增/编辑/单条删除页面流程、智谱配置校验、向量存储清理、cosine similarity、RAG XML Prompt 注入工具、前端自动检索注入和真实智谱 embedding-3 基准测试均纳入记录；后续可继续补更多样本规模的批量基准。
 
 ## 风险与后续扩展

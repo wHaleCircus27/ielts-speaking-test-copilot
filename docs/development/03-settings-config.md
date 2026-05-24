@@ -35,6 +35,7 @@
 - 智谱维度限制为 `2048`，Key 仅保存在本地配置并由 Rust command 层读取。
 - 读取旧本地配置时会将历史维度归一为 `2048`；SQLite `teacher_case_embeddings.dimensions` 保留历史维度记录，检索只使用 provider、model 和当前 `2048` 维度匹配的向量，旧 `1024` 向量需重建后参与检索。
 - Azure Speech 配置只用于短期 Speech token 签发和真实音频评估；Vocabulary、Grammar、Topic 统一由 DeepSeek 基于 transcript、题目和 RAG 案例判断。
+- 设置弹窗 UI 以 [10-assessor-ui-redesign.md](10-assessor-ui-redesign.md) 为准；当前实现包含 `外观主题`、`字体与字号`、`AI 引擎模型` 三个 tab，并在 AI tab 管理 DeepSeek、智谱和 Azure 配置。
 
 ## 数据结构
 
@@ -122,6 +123,7 @@ type ConfigValidationResult = {
 - 清除密钥后相关功能提示需要重新配置。
 - DeepSeek 连接测试不输出或记录 API Key。
 - DeepSeek 连接测试成功时展示 `deepseek-v4-flash`、`deepseek-v4-pro` 等服务返回模型。
+- 设置弹窗不回显已保存 Key，只显示配置状态；视觉和交互与 UI 固化文档一致。
 - 无 DeepSeek Key 时不能发起批改，并显示明确错误。
 - 无智谱 Key 时教师案例向量重建和 RAG 检索给出明确错误，普通批改不受影响。
 - 无 Azure Key 时不能发起语音评估，并显示明确错误。

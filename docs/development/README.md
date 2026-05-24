@@ -12,8 +12,10 @@
 - MVP 2 媒体导入与转码已完成基础链路。
 - MVP 3 已代码收口：接入 Azure Speech SDK continuous mode 长音频发音评估、逐词 transcript、停顿标注、低分词标注、点击跳转和播放高亮。
 - MVP 4 教师 RAG 已接入教师案例 CRUD、智谱 `embedding-3` 向量重建、本地 Top-K 检索和 RAG Prompt 注入准备层；真实智谱 Key 验证 deferred。
-- 当前自动化验证记录：`pnpm typecheck`、`pnpm test`、`pnpm build`、`cd src-tauri && cargo test` 均通过。
-- 当前 deferred 人工验收：配置真实 Azure Speech Key 后，用 30 秒以上 WAV 验证 continuous pronunciation assessment。
+- 当前自动化验证记录：`pnpm typecheck`、`pnpm test`、`pnpm build`、`cd src-tauri && cargo test -- --test-threads=1` 均通过。
+- 当前真实服务 CLI 预检：使用本地测试资源验证 Azure Speech token/WAV 样本和 DeepSeek `/models`、JSON mode，输出未包含 API Key 或短期 token。
+- 当前 deferred 人工验收：Tauri 桌面 UI 中配置真实 Azure Speech Key 后，用 30 秒以上 WAV 验证 continuous pronunciation assessment、点击跳转和播放高亮。
+- UI 固化文档：[10-assessor-ui-redesign.md](10-assessor-ui-redesign.md)。UI 规范以当前代码实现为准，后续 UI 改动需同步更新该文档。
 
 ## 推荐阅读顺序
 
@@ -27,6 +29,7 @@
 8. [07-transcript-playback-sync.md](07-transcript-playback-sync.md)
 9. [08-teacher-rag.md](08-teacher-rag.md)
 10. [09-testing-acceptance.md](09-testing-acceptance.md)
+11. [10-assessor-ui-redesign.md](10-assessor-ui-redesign.md)
 
 ## 模块依赖
 
@@ -44,6 +47,12 @@ flowchart TD
   H --> D
   D --> I["09 测试与验收"]
   G --> I
+  B --> J["10 UI 固化"]
+  D --> J
+  E --> J
+  F --> J
+  G --> J
+  H --> J
 ```
 
 ## 文档模板
@@ -68,6 +77,7 @@ flowchart TD
 - Azure Speech 例外：Rust 后端只签发短期 token，前端 SDK 使用 token 做 continuous recognition，仍不持有 Azure Key。
 - 任何功能都必须有明确失败状态。
 - 不批量删除文件或目录。
+- UI 设计冲突时以当前代码实现为准，并同步更新 `10-assessor-ui-redesign.md`。
 
 ## 测试资源目录
 
