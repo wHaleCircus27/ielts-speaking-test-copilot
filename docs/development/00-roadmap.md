@@ -106,7 +106,7 @@
 - R-302：实现案例录入页面。
 - R-303：建立 SQLite 表。
 - R-304：接入智谱 `embedding-3`。
-- R-305：建立 `sqlite-vec` 向量检索。
+- R-305：建立向量检索。实际实现为 SQLite JSON 向量存储 + Rust 层 cosine similarity，`sqlite-vec` 迁移列为后续扩展。
 - R-306：实现 Top-K 检索。
 - R-307：将案例格式化为 XML 片段注入 Prompt。
 
@@ -116,6 +116,15 @@
 - Embedding 成功后可检索相似案例。
 - 批改请求中包含 2-3 个相似案例。
 - 超长案例会被清洗和截断。
+
+### 当前状态
+
+- 教师案例 CRUD（新增、查看、编辑、单条删除）已完成，使用 SQLite 本地存储。
+- 智谱 `embedding-3` 已接入，固定 `dimensions=2048`，支持重建向量。
+- 向量检索使用 SQLite JSON 存储 + Rust 层 cosine similarity Top-K，未使用 `sqlite-vec`（列为后续扩展）。
+- RAG Prompt 注入已完成：最多 3 个 XML `<example>`，含清洗、截断和 XML 转义。
+- 批改时自动检索注入；智谱 Key 缺失或检索失败时不阻塞普通批改。
+- Deferred：真实智谱 API Key `dimensions=2048` 基准测试和 Tauri 桌面 UI 人工验收。
 
 ## MVP 5：稳定化
 
@@ -138,3 +147,29 @@
 - 外部服务失败时都有明确 UI 状态。
 - API Key 不出现在日志、错误弹窗和前端源码中。
 - UI 文档能准确反映当前代码实现，相关开发文档均可索引到 `10-assessor-ui-redesign.md`。
+
+### 附加改进任务
+
+详细方案见 [11-mvp5-improvements.md](11-mvp5-improvements.md)。
+
+- R-501：抽取 5 个自定义 Hooks（useGradingWorkflow、useMediaWorkflow、useTranscriptPlayback、useSessionHistory、useAppConfig）。
+- R-502：抽取 6 个 UI 组件（MacMenuBar、FinderSidebar、WorkspaceInput、WorkspaceResult、TranscriptPanel、WindowStatusBar）。
+- R-503：App.tsx 瘦身至 ≤ 500 行并集成验证。
+- R-504：Rust lib.rs 拆分为 config.rs、constants.rs、errors.rs 模块。
+- R-505：Rust 测试引入 tempfile 实现并行化，移除 `--test-threads=1` 约束。
+- R-506：Vite manual chunks 配置，分离 lucide-react 和 @tauri-apps。
+- R-507：Feature 模块 lazy import（CorpusPage、MediaPage、SettingsPage）。
+- R-508：文档状态同步和改进记录更新。
+
+### 附加改进验收标准
+
+- App.tsx ≤ 500 行，各 Hook 可独立测试。
+- Rust lib.rs ≤ 150 行，`cargo clippy` 无新增 warning。
+- `cargo test`（无 `--test-threads=1`）连续 3 次通过。
+- `pnpm build` 无 chunk 体积警告。
+
+### 当前状态
+
+- R-401~R-403、R-405~R-406 已通过自动化验证。
+- R-404 手动验收 deferred，等待真实 Azure Speech Key。
+- R-501~R-508 改进任务待执行。

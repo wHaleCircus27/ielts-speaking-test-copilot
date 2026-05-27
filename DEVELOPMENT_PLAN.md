@@ -44,10 +44,10 @@
 | MVP 1 | 基础工程与文本批改 | 桌面应用壳、设置、本地配置、DeepSeek 批改、结果页 |
 | MVP 2 | 媒体处理 | 文件导入、FFmpeg sidecar、WAV 转码、音频播放器 |
 | MVP 3 | 语音评估与播放同步 | Azure 发音评估、逐词时间戳、停顿、低分词、点击跳转 |
-| MVP 4 | 教师个性化 RAG | 教师案例录入、SQLite、`sqlite-vec`、Embedding、Prompt 注入 |
-| MVP 5 | 稳定化 | 测试补齐、错误体验、性能检查、发布前验收 |
+| MVP 4 | 教师个性化 RAG | 教师案例录入、SQLite、JSON 向量存储、Embedding、Prompt 注入 |
+| MVP 5 | 稳定化与改进 | 测试补齐、错误体验、性能检查、架构改进、发布前验收 |
 
-当前状态：MVP 3 已按微软文档完成代码收口和 mock 自动化验证。真实 Azure API Key 与 30 秒以上长音频验收暂缓到后续人工验收，不作为本次 MVP 3 收口阻塞项。
+当前状态：MVP 4 教师个性化 RAG 已全部完成（SQLite CRUD、智谱 embedding-3、cosine similarity Top-K、RAG Prompt 注入）。MVP 5 稳定化进行中，原有任务 R-401~R-403、R-405~R-406 已通过自动化验证；附加改进任务 R-501~R-508 已规划，详见 `docs/development/11-mvp5-improvements.md`。
 
 ## 4. 功能模块
 
@@ -64,6 +64,8 @@
 - [07-transcript-playback-sync.md](docs/development/07-transcript-playback-sync.md)
 - [08-teacher-rag.md](docs/development/08-teacher-rag.md)
 - [09-testing-acceptance.md](docs/development/09-testing-acceptance.md)
+- [10-assessor-ui-redesign.md](docs/development/10-assessor-ui-redesign.md)
+- [11-mvp5-improvements.md](docs/development/11-mvp5-improvements.md)
 
 ## 5. 推荐实施顺序
 

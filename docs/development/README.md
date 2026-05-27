@@ -6,12 +6,9 @@
 
 ## 当前状态
 
-- MVP 1 基础工程、设置、主题、DeepSeek 文本批改链路已进入收口阶段。
-- DeepSeek 已接入 `deepseek-v4-flash` 和 `deepseek-v4-pro`，默认使用 `deepseek-v4-flash`。
-- 设置页已提供 DeepSeek `/models` 连通性测试，展示 `availableModels` 和当前模型可用状态。
-- MVP 2 媒体导入与转码已完成基础链路。
-- MVP 3 已代码收口：接入 Azure Speech SDK continuous mode 长音频发音评估、逐词 transcript、停顿标注、低分词标注、点击跳转和播放高亮。
-- MVP 4 教师 RAG 已接入教师案例 CRUD、智谱 `embedding-3` 向量重建、本地 Top-K 检索和 RAG Prompt 注入准备层；真实智谱 Key 验证 deferred。
+- MVP 1~4 全部功能已完成并通过自动化验证。
+- MVP 5 稳定化进行中：R-401~R-403、R-405~R-406 已完成；R-404 手动验收 deferred。
+- MVP 5 附加改进任务 R-501~R-508 已规划，详见 [11-mvp5-improvements.md](11-mvp5-improvements.md)。
 - 当前自动化验证记录：`pnpm typecheck`、`pnpm test`、`pnpm build`、`cd src-tauri && cargo test -- --test-threads=1` 均通过。
 - 当前真实服务 CLI 预检：使用本地测试资源验证 Azure Speech token/WAV 样本和 DeepSeek `/models`、JSON mode，输出未包含 API Key 或短期 token。
 - 当前 deferred 人工验收：Tauri 桌面 UI 中配置真实 Azure Speech Key 后，用 30 秒以上 WAV 验证 continuous pronunciation assessment、点击跳转和播放高亮。
@@ -30,6 +27,7 @@
 9. [08-teacher-rag.md](08-teacher-rag.md)
 10. [09-testing-acceptance.md](09-testing-acceptance.md)
 11. [10-assessor-ui-redesign.md](10-assessor-ui-redesign.md)
+12. [11-mvp5-improvements.md](11-mvp5-improvements.md)
 
 ## 模块依赖
 
