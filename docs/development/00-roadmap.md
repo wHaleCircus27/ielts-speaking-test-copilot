@@ -152,14 +152,14 @@
 
 详细方案见 [11-mvp5-improvements.md](11-mvp5-improvements.md)。
 
-- R-501：抽取 5 个自定义 Hooks（useGradingWorkflow、useMediaWorkflow、useTranscriptPlayback、useSessionHistory、useAppConfig）。
-- R-502：抽取 6 个 UI 组件（MacMenuBar、FinderSidebar、WorkspaceInput、WorkspaceResult、TranscriptPanel、WindowStatusBar）。
-- R-503：App.tsx 瘦身至 ≤ 500 行并集成验证。
+- R-501：抽取 5 个自定义 Hooks（useGradingWorkflow、useMediaWorkflow、useTranscriptPlayback、useSessionHistory、useAppConfig）。已完成。
+- R-502：抽取 6 个 UI 组件（MacMenuBar、FinderSidebar、WorkspaceInput、WorkspaceResult、TranscriptPanel、WindowStatusBar）。已完成。
+- R-503：App.tsx 瘦身至 ≤ 500 行并集成验证。已完成：`src/app/App.tsx` 当前 196 行。
 - R-504：Rust lib.rs 拆分为 config.rs、constants.rs、errors.rs 模块。
 - R-505：Rust 测试引入 tempfile 实现并行化，移除 `--test-threads=1` 约束。
 - R-506：Vite manual chunks 配置，分离 lucide-react 和 @tauri-apps。
 - R-507：Feature 模块 lazy import（CorpusPage、MediaPage、SettingsPage）。
-- R-508：文档状态同步和改进记录更新。
+- R-508：文档状态同步和改进记录更新。已完成。
 
 ### 附加改进验收标准
 
@@ -172,4 +172,5 @@
 
 - R-401~R-403、R-405~R-406 已通过自动化验证。
 - R-404 手动验收 deferred，等待真实 Azure Speech Key。
-- R-501~R-508 改进任务待执行。
+- R-501~R-503、R-508 已完成并通过 `pnpm typecheck`、`pnpm test`、`pnpm build` 验证；`pnpm build` 仍有单 chunk > 500 kB 警告，留给 R-506/R-507 处理。
+- R-504~R-507 改进任务待执行。

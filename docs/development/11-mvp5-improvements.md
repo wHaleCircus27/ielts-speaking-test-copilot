@@ -16,7 +16,7 @@
 
 ### 问题
 
-`src/app/App.tsx` 当前 2171 行，承担路由、状态管理、业务逻辑、UI 渲染等全部职责。单文件认知负担过高，难以独立测试和复用。
+`src/app/App.tsx` 原 2171 行，曾承担路由、状态管理、业务逻辑、UI 渲染等全部职责。R-501~R-503 已完成后，当前 `App.tsx` 为 196 行，仅保留顶层接线、模态开关和页面组合。
 
 ### 拆分方案
 
@@ -150,14 +150,23 @@ let db_path = tmp.path().join("test.db");
 
 | 编号 | 任务 | 改进项 | 优先级 | 预估工时 |
 |------|------|--------|--------|----------|
-| R-501 | 抽取 5 个自定义 Hooks | A | P0 | 4h |
-| R-502 | 抽取 6 个 UI 组件 | A | P0 | 4h |
-| R-503 | App.tsx 瘦身和集成验证 | A | P0 | 2h |
+| R-501 | 抽取 5 个自定义 Hooks | A | P0 | 已完成 |
+| R-502 | 抽取 6 个 UI 组件 | A | P0 | 已完成 |
+| R-503 | App.tsx 瘦身和集成验证 | A | P0 | 已完成 |
 | R-504 | Rust lib.rs 拆分为 config/constants/errors 模块 | B | P1 | 2h |
 | R-505 | Rust 测试引入 tempfile 实现并行化 | C | P1 | 2h |
 | R-506 | Vite manual chunks 配置 | D | P2 | 1h |
 | R-507 | Feature 模块 lazy import | D | P2 | 1h |
-| R-508 | 文档状态同步和改进记录更新 | — | P0 | 1h |
+| R-508 | 文档状态同步和改进记录更新 | — | P0 | 已完成 |
+
+## P0 完成记录
+
+- 已新增 `src/hooks/`：`useAppConfig`、`useSessionHistory`、`useGradingWorkflow`、`useMediaWorkflow`、`useTranscriptPlayback`。
+- 已新增 `src/components/workspace/`：`MacMenuBar`、`FinderSidebar`、`WorkspaceInput`、`WorkspaceResult`、`TranscriptPanel`、`WindowStatusBar`，并保留 `Workspace` 作为组合层。
+- 已新增 `src/app/workspaceTypes.ts` 和 `src/app/workspaceUtils.ts`，集中放置工作台专用类型、主题 helper、评分映射和格式化函数。
+- `src/app/App.tsx` 已瘦身至 196 行。
+- 验证通过：`pnpm typecheck`、`pnpm test`（7 个测试文件，27 个测试）、`pnpm build`。
+- `pnpm build` 仍提示单个 JS chunk 大于 500 kB；该问题属于 R-506/R-507 的构建优化范围，本轮 P0 不处理。
 
 ### 优先级说明
 
