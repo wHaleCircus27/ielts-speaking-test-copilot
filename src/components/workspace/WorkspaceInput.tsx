@@ -145,6 +145,7 @@ export function WorkspaceInput({
             <input
               value={question}
               onChange={(event) => onSetQuestion(event.target.value)}
+              placeholder="例如: Describe a memorable trip"
               className="workspace-input text-xs font-normal normal-case"
             />
           </label>

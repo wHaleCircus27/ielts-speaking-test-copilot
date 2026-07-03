@@ -28,6 +28,7 @@ export type PublicAppConfig = {
     baseUrl: string;
     model: string;
     dimensions: ZhipuEmbeddingDimensions;
+    similarityThreshold: number;
   };
   azure: {
     keyConfigured: boolean;
@@ -52,6 +53,7 @@ export type SaveAppConfigInput = {
     baseUrl: string;
     model: string;
     dimensions: ZhipuEmbeddingDimensions;
+    similarityThreshold?: number;
   };
   azure: {
     key?: string;
@@ -76,6 +78,7 @@ export const defaultPublicConfig: PublicAppConfig = {
     baseUrl: "https://open.bigmodel.cn/api/paas/v4",
     model: "embedding-3",
     dimensions: 2048,
+    similarityThreshold: 0.45,
   },
   azure: {
     keyConfigured: false,

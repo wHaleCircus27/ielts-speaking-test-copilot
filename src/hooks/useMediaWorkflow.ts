@@ -1,15 +1,20 @@
 import { useEffect, useState } from "react";
-import { mapTeacherCaseMatchesToRagExamples, searchTeacherCases } from "../lib/corpus";
+import {
+  buildTeacherCaseSearchQuery,
+  mapTeacherCaseMatchesToRagExamples,
+  mapTeacherCaseMatchesToRagReferences,
+  searchTeacherCases,
+} from "../lib/corpus";
 import { gradeSpeaking } from "../lib/grading";
 import { getMediaMetadata, selectMediaFile, transcodeMedia } from "../lib/media";
 import { assessPronunciation, validateAzureConfig } from "../lib/speech";
 import { getTranscriptText } from "../lib/transcript";
 import type { PublicAppConfig } from "../types/config";
 import type { AppError } from "../types/errors";
-import type { GradeResult, SpeakingPart } from "../types/grading";
+import type { GradeResult, RagPromptExample, SpeakingPart } from "../types/grading";
 import type { MediaMetadata, MediaTranscodeResult } from "../types/media";
 import type { SpeechAssessmentResult } from "../types/speech";
-import type { InputMode, WorkspaceResult } from "../app/workspaceTypes";
+import type { InputMode, RagUsageInfo, WorkspaceResult } from "../app/workspaceTypes";
 import {
   getFileExtension,
   getFileNameFromPath,
@@ -150,20 +155,24 @@ export function useMediaWorkflow({
         wavPath: nextResult.outputPath,
       });
       const transcriptText = getTranscriptText(nextSpeechAssessmentResult) || nextSpeechAssessmentResult.recognizedText;
-      const transcriptGradeResult = await gradeTranscriptWithDeepSeek({
+      const transcriptGradingResult = await gradeTranscriptWithDeepSeek({
         transcriptText,
         question,
         part,
       });
       setSpeechAssessmentResult(nextSpeechAssessmentResult);
-      const workspaceResult = mapSpeechAssessmentToWorkspaceResult(nextSpeechAssessmentResult, transcriptGradeResult);
+      const workspaceResult = mapSpeechAssessmentToWorkspaceResult(
+        nextSpeechAssessmentResult,
+        transcriptGradingResult?.gradeResult ?? null,
+        transcriptGradingResult?.ragUsage,
+      );
       onAddRecord(
         customTitle.trim() || question.trim() || getFileNameFromPath(normalizedMediaPath).replace(/\.[^/.]+$/, ""),
         mediaMetadata?.fileName ?? getFileNameFromPath(normalizedMediaPath),
         workspaceResult,
       );
       setMediaNotice(
-        transcriptGradeResult
+        transcriptGradingResult?.gradeResult
           ? "Azure 长音频发音评估完成，DeepSeek 已基于 transcript 补充词汇、语法和话题内容。"
           : "Azure 长音频发音评估完成；DeepSeek 文本维度暂不可用，已保留 transcript 和发音报告。",
       );
@@ -178,24 +187,65 @@ export function useMediaWorkflow({
     transcriptText: string;
     question: string;
     part: SpeakingPart;
-  }): Promise<GradeResult | null> {
+  }): Promise<{ gradeResult: GradeResult; ragUsage: RagUsageInfo } | null> {
     const normalizedTranscript = input.transcriptText.trim();
     if (!serviceReady || !config.deepseek.apiKeyConfigured || normalizedTranscript.length < 20) {
       return null;
     }
 
     try {
-      const ragExamples = config.zhipu.apiKeyConfigured
-        ? mapTeacherCaseMatchesToRagExamples(await searchTeacherCases(normalizedTranscript, 3))
-        : [];
-      return await gradeSpeaking({
+      const { ragExamples, ragUsage } = await loadRagContextForTranscript(input.question, normalizedTranscript);
+      const gradeResult = await gradeSpeaking({
         text: normalizedTranscript,
         part: input.part,
         question: input.question.trim() || undefined,
         ragExamples,
       });
+      return { gradeResult, ragUsage };
     } catch {
       return null;
+    }
+  }
+
+  async function loadRagContextForTranscript(
+    transcriptQuestion: string,
+    transcriptText: string,
+  ): Promise<{ ragExamples: RagPromptExample[]; ragUsage: RagUsageInfo }> {
+    if (!config.zhipu.apiKeyConfigured) {
+      return {
+        ragExamples: [],
+        ragUsage: {
+          status: "notConfigured",
+          message: "未配置智谱 API Key，本次评分未使用教师案例库。",
+          references: [],
+        },
+      };
+    }
+
+    try {
+      const matches = await searchTeacherCases(
+        buildTeacherCaseSearchQuery(transcriptQuestion, transcriptText),
+        3,
+      );
+      return {
+        ragExamples: mapTeacherCaseMatchesToRagExamples(matches),
+        ragUsage: {
+          status: matches.length ? "matched" : "none",
+          message: matches.length
+            ? `已引用 ${matches.length} 条教师案例。`
+            : "案例库没有达到相似度阈值的匹配项。",
+          references: mapTeacherCaseMatchesToRagReferences(matches),
+        },
+      };
+    } catch {
+      return {
+        ragExamples: [],
+        ragUsage: {
+          status: "failed",
+          message: "教师案例检索失败，本次评分未使用案例库。",
+          references: [],
+        },
+      };
     }
   }
 

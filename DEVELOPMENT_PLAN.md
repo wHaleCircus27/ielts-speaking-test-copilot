@@ -47,7 +47,7 @@
 | MVP 4 | 教师个性化 RAG | 教师案例录入、SQLite、JSON 向量存储、Embedding、Prompt 注入 |
 | MVP 5 | 稳定化与改进 | 测试补齐、错误体验、性能检查、架构改进、发布前验收 |
 
-当前状态：MVP 4 教师个性化 RAG 已全部完成（SQLite CRUD、智谱 embedding-3、cosine similarity Top-K、RAG Prompt 注入）。MVP 5 稳定化进行中，原有任务 R-401~R-403、R-405~R-406 已通过自动化验证；附加改进任务 R-501~R-508 已规划，详见 `docs/development/11-mvp5-improvements.md`。
+当前状态：MVP 4 教师个性化 RAG 已全部完成（SQLite CRUD、智谱 embedding-3、cosine similarity Top-K、RAG Prompt 注入）。MVP 5 稳定化进行中，原有任务 R-401~R-403、R-405~R-406 已通过自动化验证，R-404 真实 Azure 桌面 UI 人工验收 deferred；附加改进任务 R-501~R-508 已完成，详见 `docs/development/11-mvp5-improvements.md`。
 
 ## 4. 功能模块
 

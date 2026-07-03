@@ -5,6 +5,7 @@ export type RagPromptExample = {
   revisedText: string;
   teacherComment: string;
   scoringPreference?: string;
+  score?: number;
 };
 
 export type GradeRequest = {

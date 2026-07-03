@@ -8,8 +8,9 @@
 
 - MVP 1~4 全部功能已完成并通过自动化验证。
 - MVP 5 稳定化进行中：R-401~R-403、R-405~R-406 已完成；R-404 手动验收 deferred。
-- MVP 5 附加改进任务 R-501~R-508 已规划，详见 [11-mvp5-improvements.md](11-mvp5-improvements.md)。
-- 当前自动化验证记录：`pnpm typecheck`、`pnpm test`、`pnpm build`、`cd src-tauri && cargo test -- --test-threads=1` 均通过。
+- MVP 5 附加改进任务 R-501~R-508 已完成，详见 [11-mvp5-improvements.md](11-mvp5-improvements.md)。
+- 第 12 章教师案例库 RAG 改进 Phase 1~3 已完成：`rusqlite` bundled 存储层、f32 BLOB 向量、相似度阈值、自动 Embedding、RAG 引用展示和搜索预览均已落地；真实智谱 2048 维基准 deferred 到本地人工执行。
+- 当前自动化验证记录：`pnpm typecheck`、`pnpm test`、`pnpm build`、`cd src-tauri && cargo test` 均通过；Rust 测试不再要求 `--test-threads=1`。
 - 当前真实服务 CLI 预检：使用本地测试资源验证 Azure Speech token/WAV 样本和 DeepSeek `/models`、JSON mode，输出未包含 API Key 或短期 token。
 - 当前 deferred 人工验收：Tauri 桌面 UI 中配置真实 Azure Speech Key 后，用 30 秒以上 WAV 验证 continuous pronunciation assessment、点击跳转和播放高亮。
 - UI 固化文档：[10-assessor-ui-redesign.md](10-assessor-ui-redesign.md)。UI 规范以当前代码实现为准，后续 UI 改动需同步更新该文档。
@@ -28,6 +29,7 @@
 10. [09-testing-acceptance.md](09-testing-acceptance.md)
 11. [10-assessor-ui-redesign.md](10-assessor-ui-redesign.md)
 12. [11-mvp5-improvements.md](11-mvp5-improvements.md)
+13. [12-corpus-rag-improvements.md](12-corpus-rag-improvements.md)
 
 ## 模块依赖
 

@@ -41,6 +41,8 @@ pub(crate) struct RagPromptExample {
     teacher_comment: String,
     #[serde(default, alias = "scoringPreference")]
     scoring_preference: Option<String>,
+    #[serde(default)]
+    score: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -444,8 +446,15 @@ fn format_rag_prompt_example(example: &RagPromptExample) -> Option<String> {
         })
         .unwrap_or_default();
 
+    let example_tag = example
+        .score
+        .filter(|score| score.is_finite())
+        .map(|score| format!(r#"<example similarity="{:.4}">"#, score))
+        .unwrap_or_else(|| "<example>".to_string());
+
     Some(format!(
-        "<example>\n  <original_text>{}</original_text>\n  <revised_text>{}</revised_text>\n  <teacher_comment>{}</teacher_comment>{}\n</example>",
+        "{}\n  <original_text>{}</original_text>\n  <revised_text>{}</revised_text>\n  <teacher_comment>{}</teacher_comment>{}\n</example>",
+        example_tag,
         escape_xml_text(&original_text),
         escape_xml_text(&revised_text),
         escape_xml_text(&teacher_comment),
@@ -563,8 +572,7 @@ fn summarize_for_debug(value: &str) -> String {
         .chars()
         .take(600)
         .collect::<String>()
-        .replace('\n', " ")
-        .replace('\r', " ")
+        .replace(['\n', '\r'], " ")
 }
 
 #[cfg(test)]
@@ -641,6 +649,7 @@ mod tests {
                 revised_text: "I prefer precise vocabulary.".to_string(),
                 teacher_comment: "Avoid \"very\" and add examples.".to_string(),
                 scoring_preference: Some("重视 fluency > rare words".to_string()),
+                score: None,
             }],
         });
 
@@ -660,6 +669,7 @@ mod tests {
                 revised_text: format!("Revised {index}"),
                 teacher_comment: format!("Comment {index}"),
                 scoring_preference: None,
+                score: None,
             })
             .collect::<Vec<_>>();
 
@@ -677,9 +687,23 @@ mod tests {
             revised_text: "Revised".to_string(),
             teacher_comment: "Comment".to_string(),
             scoring_preference: None,
+            score: None,
         }]);
 
         assert_eq!(xml, "无教师历史案例。");
+    }
+
+    #[test]
+    fn rag_prompt_includes_similarity_attribute_when_score_is_available() {
+        let xml = build_rag_prompt_xml(&[RagPromptExample {
+            original_text: "Original".to_string(),
+            revised_text: "Revised".to_string(),
+            teacher_comment: "Comment".to_string(),
+            scoring_preference: None,
+            score: Some(0.91234),
+        }]);
+
+        assert!(xml.contains(r#"<example similarity="0.9123">"#));
     }
 
     #[test]
@@ -690,6 +714,7 @@ mod tests {
             revised_text: "Revised".to_string(),
             teacher_comment: "Comment".to_string(),
             scoring_preference: None,
+            score: None,
         }]);
 
         let extracted = xml

@@ -26,6 +26,23 @@ export type SentenceCorrection = {
   category: CorrectionCategory;
 };
 
+export type RagReference = {
+  caseId: string;
+  score: number;
+  originalText: string;
+  revisedText: string;
+  teacherComment: string;
+  scoringPreference?: string;
+};
+
+export type RagUsageStatus = "notConfigured" | "matched" | "none" | "failed";
+
+export type RagUsageInfo = {
+  status: RagUsageStatus;
+  message: string;
+  references: RagReference[];
+};
+
 export type WorkspaceResult = {
   overallScore: number;
   fluencyScore: ScoreCriterion;
@@ -38,6 +55,7 @@ export type WorkspaceResult = {
   transcript: TranscriptChunk[];
   transcriptTokens?: TranscriptToken[];
   speechAssessment?: SpeechAssessmentResult;
+  ragUsage?: RagUsageInfo;
 };
 
 export type CorrectionRecord = {

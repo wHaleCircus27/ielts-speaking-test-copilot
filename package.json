@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "mvp4:verify": "node scripts/verify-mvp4-readiness.mjs",
-    "azure:speech-preflight": "node scripts/azure-speech-preflight.mjs"
+    "azure:speech-preflight": "node scripts/azure-speech-preflight.mjs",
+    "zhipu:embedding-benchmark": "node scripts/zhipu-embedding-benchmark.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",

@@ -9,7 +9,7 @@
 - MVP 2 已完成媒体导入与 FFmpeg/afconvert 转码基础链路。
 - MVP 3 已代码收口：按微软文档接入 Azure Speech SDK continuous mode 长音频发音评估、逐词 transcript、停顿标注、低分词、点击跳转和播放高亮。
 - MVP 3 当前验收依据为微软文档结构一致性和 mock 自动化验证；真实 Azure API Key、region、token 与 30 秒以上长音频验证已暂缓到后续人工验收。
-- MVP 4 已接入教师案例库、智谱 `embedding-3` 向量重建、本地 SQLite JSON 向量存储、Top-K 检索和 RAG Prompt 注入准备层；真实智谱 Key 验证待提供 Key 后补充。
+- MVP 4 已接入教师案例库、智谱 `embedding-3` 向量重建、本地 SQLite f32 BLOB 向量存储、配置化阈值、query cache、诊断搜索预览和 RAG Prompt 注入准备层；真实智谱 2048 维基准可用本地 benchmark 脚本补充。
 
 详细计划见：
 
@@ -28,6 +28,7 @@ pnpm typecheck
 pnpm test
 pnpm build
 pnpm mvp4:verify
+pnpm zhipu:embedding-benchmark
 cd src-tauri && cargo test
 ```
 

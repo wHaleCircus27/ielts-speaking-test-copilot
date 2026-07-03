@@ -133,6 +133,7 @@ export const SettingsPage = forwardRef<SettingsPageHandle, SettingsPageProps>(fu
       baseUrl: config.zhipu.baseUrl,
       model: config.zhipu.model,
       dimensions: config.zhipu.dimensions,
+      similarityThreshold: config.zhipu.similarityThreshold,
     },
     azure: {
       key: "",
@@ -164,6 +165,7 @@ export const SettingsPage = forwardRef<SettingsPageHandle, SettingsPageProps>(fu
         baseUrl: config.zhipu.baseUrl,
         model: config.zhipu.model,
         dimensions: config.zhipu.dimensions,
+        similarityThreshold: config.zhipu.similarityThreshold,
       },
       azure: {
         key: "",
@@ -194,6 +196,7 @@ export const SettingsPage = forwardRef<SettingsPageHandle, SettingsPageProps>(fu
           apiKey: form.zhipu.apiKey?.trim() || undefined,
           baseUrl: form.zhipu.baseUrl.trim(),
           model: form.zhipu.model.trim(),
+          similarityThreshold: Number(form.zhipu.similarityThreshold),
         },
         azure: {
           ...form.azure,
@@ -639,6 +642,27 @@ export const SettingsPage = forwardRef<SettingsPageHandle, SettingsPageProps>(fu
                     >
                       <option value={2048}>2048</option>
                     </select>
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className={labelClassName}>RAG 相似度阈值</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={form.zhipu.similarityThreshold}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          zhipu: {
+                            ...current.zhipu,
+                            similarityThreshold: Number(event.target.value),
+                          },
+                        }))
+                      }
+                      className={inputClassName}
+                    />
                   </label>
                 </div>
 

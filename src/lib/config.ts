@@ -37,6 +37,10 @@ function readBrowserPreviewConfig(): PublicAppConfig {
         baseUrl: parsedConfig.zhipu?.baseUrl ?? defaultPublicConfig.zhipu.baseUrl,
         model: parsedConfig.zhipu?.model ?? defaultPublicConfig.zhipu.model,
         dimensions: zhipuEmbeddingDimensions,
+        similarityThreshold:
+          typeof parsedConfig.zhipu?.similarityThreshold === "number"
+            ? parsedConfig.zhipu.similarityThreshold
+            : defaultPublicConfig.zhipu.similarityThreshold,
       },
       azure: {
         keyConfigured: Boolean(parsedConfig.azure?.keyConfigured),
@@ -81,6 +85,10 @@ export function saveAppConfig(input: SaveAppConfigInput) {
         baseUrl: input.zhipu.baseUrl.trim(),
         model: input.zhipu.model.trim(),
         dimensions: input.zhipu.dimensions,
+        similarityThreshold:
+          input.zhipu.similarityThreshold ??
+          currentConfig.zhipu.similarityThreshold ??
+          defaultPublicConfig.zhipu.similarityThreshold,
       },
       azure: {
         keyConfigured: Boolean(input.azure.key?.trim()) || currentConfig.azure.keyConfigured,

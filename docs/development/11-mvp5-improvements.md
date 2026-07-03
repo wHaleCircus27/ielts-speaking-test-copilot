@@ -153,10 +153,10 @@ let db_path = tmp.path().join("test.db");
 | R-501 | 抽取 5 个自定义 Hooks | A | P0 | 已完成 |
 | R-502 | 抽取 6 个 UI 组件 | A | P0 | 已完成 |
 | R-503 | App.tsx 瘦身和集成验证 | A | P0 | 已完成 |
-| R-504 | Rust lib.rs 拆分为 config/constants/errors 模块 | B | P1 | 2h |
-| R-505 | Rust 测试引入 tempfile 实现并行化 | C | P1 | 2h |
-| R-506 | Vite manual chunks 配置 | D | P2 | 1h |
-| R-507 | Feature 模块 lazy import | D | P2 | 1h |
+| R-504 | Rust lib.rs 拆分为 config/constants/errors 模块 | B | P1 | 已完成 |
+| R-505 | Rust 测试引入 tempfile 实现并行化 | C | P1 | 已完成 |
+| R-506 | Vite manual chunks 配置 | D | P2 | 已完成 |
+| R-507 | Feature 模块 lazy import | D | P2 | 已完成 |
 | R-508 | 文档状态同步和改进记录更新 | — | P0 | 已完成 |
 
 ## P0 完成记录
@@ -166,7 +166,15 @@ let db_path = tmp.path().join("test.db");
 - 已新增 `src/app/workspaceTypes.ts` 和 `src/app/workspaceUtils.ts`，集中放置工作台专用类型、主题 helper、评分映射和格式化函数。
 - `src/app/App.tsx` 已瘦身至 196 行。
 - 验证通过：`pnpm typecheck`、`pnpm test`（7 个测试文件，27 个测试）、`pnpm build`。
-- `pnpm build` 仍提示单个 JS chunk 大于 500 kB；该问题属于 R-506/R-507 的构建优化范围，本轮 P0 不处理。
+- P0 完成时 `pnpm build` 曾提示单个 JS chunk 大于 500 kB；该问题已在 R-506/R-507 中处理。
+
+## 非 P0 完成记录
+
+- 已新增 `src-tauri/src/config.rs`、`src-tauri/src/constants.rs`、`src-tauri/src/errors.rs`，`src-tauri/src/lib.rs` 已收敛到 Tauri command 接线和少量命令适配逻辑，当前 87 行。
+- Rust corpus 测试已使用 `tempfile` 为每个测试创建独立临时数据库，默认并行 `cargo test` 可稳定运行。
+- `vite.config.ts` 已通过 `build.rolldownOptions.output.manualChunks` 拆分 React、Tauri、lucide、Azure Speech SDK 等 vendor chunk。
+- `src/app/App.tsx` 已将当前实际接线的 `CorpusPage` 和 `SettingsPage` 改为 `React.lazy` + `Suspense`，不新增未接线 `MediaPage` 路由；当前 213 行。
+- `pnpm build` 已无 chunk 体积警告，最大 JS chunk 为 `vendor-speech`，小于 500 kB。
 
 ### 优先级说明
 
@@ -178,7 +186,7 @@ let db_path = tmp.path().join("test.db");
 
 - 每个改进项独立提交，不混合。
 - 每次拆分后立即运行 `pnpm typecheck && pnpm test && pnpm build` 验证。
-- Rust 改动后运行 `cargo test -- --test-threads=1`（在 R-505 完成前保持串行）。
+- Rust 改动后运行默认并行 `cargo test`；R-505 已移除 `--test-threads=1` 约束。
 - 拆分过程中不改变任何业务逻辑和 UI 行为。
 - 如果拆分导致测试失败，优先修复测试而非跳过。
 

@@ -37,7 +37,7 @@ export function Workspace({
   }) => Promise<void>;
 }) {
   const [customTitle, setCustomTitle] = useState("");
-  const [question, setQuestion] = useState("Describe a happy event in your childhood");
+  const [question, setQuestion] = useState("");
   const [part, setPart] = useState<SpeakingPart>("part2");
   const [textInput, setTextInput] = useState("");
   const [activeTab, setActiveTab] = useState<ResultTab>("overall");

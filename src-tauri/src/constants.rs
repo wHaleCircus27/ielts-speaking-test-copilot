@@ -1,0 +1,2 @@
+pub(crate) const ZHIPU_EMBEDDING_DIMENSIONS: u16 = 2048;
+pub(crate) const TEACHER_CASE_SIMILARITY_THRESHOLD: f64 = 0.45;

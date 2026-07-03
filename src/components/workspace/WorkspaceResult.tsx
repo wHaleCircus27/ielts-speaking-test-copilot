@@ -1,6 +1,14 @@
 import { ArrowRight, Bookmark, CheckCircle2, ChevronDown, Clock, CornerDownRight, FileAudio, Pause, Play } from "lucide-react";
 import type { PublicAppConfig } from "../../types/config";
-import type { ReferenceTheme, ResultTab, ScoreCriterion, SentenceCorrection, TranscriptChunk, WorkspaceResult as WorkspaceResultData } from "../../app/workspaceTypes";
+import type {
+  RagUsageInfo,
+  ReferenceTheme,
+  ResultTab,
+  ScoreCriterion,
+  SentenceCorrection,
+  TranscriptChunk,
+  WorkspaceResult as WorkspaceResultData,
+} from "../../app/workspaceTypes";
 import {
   formatDuration,
   getCorrectionBadge,
@@ -204,6 +212,10 @@ export function WorkspaceResult({
                   <p className="whitespace-pre-line leading-relaxed">{displayedResult.generalFeedback}</p>
                 </div>
 
+                {displayedResult.ragUsage ? (
+                  <RagUsagePanel ragUsage={displayedResult.ragUsage} currentTheme={currentTheme} />
+                ) : null}
+
                 {displayedTranscriptTokens.length > 0 ? (
                   <div className="border-t border-current/10 pt-4">
                     <span className="mb-2 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider opacity-50">
@@ -370,6 +382,54 @@ function GuideCard({ title, text }: { title: string; text: string }) {
       <span className="block text-[9px] leading-tight opacity-60">{text}</span>
     </div>
   );
+}
+
+function RagUsagePanel({ ragUsage, currentTheme }: { ragUsage: RagUsageInfo; currentTheme: ReferenceTheme }) {
+  const statusClass =
+    ragUsage.status === "matched"
+      ? "border-emerald-500/15 bg-emerald-500/5 text-emerald-700"
+      : ragUsage.status === "failed"
+        ? "border-amber-500/20 bg-amber-500/5 text-amber-700"
+        : "border-current/10 bg-current/[0.02]";
+
+  return (
+    <div className={`rounded-lg border p-3 ${statusClass}`}>
+      <div className="flex items-start justify-between gap-3">
+        <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider">
+          <Bookmark size={12} className={currentTheme === "claude" ? "text-[#F27D26]" : undefined} />
+          <span>教师案例引用</span>
+        </span>
+        {ragUsage.references.length ? (
+          <span className="rounded bg-current/10 px-2 py-0.5 font-mono text-[10px] font-bold">
+            Top {ragUsage.references.length}
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-1 text-[11px] leading-relaxed opacity-80">{ragUsage.message}</p>
+      {ragUsage.references.length ? (
+        <div className="mt-2 grid gap-2">
+          {ragUsage.references.map((reference) => (
+            <div key={reference.caseId} className="rounded-md border border-current/10 bg-white/40 p-2 text-[11px] leading-relaxed">
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="truncate font-semibold">{reference.originalText}</span>
+                <span className="shrink-0 font-mono text-[10px] opacity-70">
+                  {formatSimilarity(reference.score)}
+                </span>
+              </div>
+              <p className="line-clamp-2 opacity-75">{reference.teacherComment}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function formatSimilarity(score: number) {
+  if (!Number.isFinite(score)) {
+    return "--";
+  }
+  return score.toFixed(2);
 }
 
 function CriterionPanel({ activeTab, scoreData }: { activeTab: ResultTab; scoreData: ScoreCriterion }) {

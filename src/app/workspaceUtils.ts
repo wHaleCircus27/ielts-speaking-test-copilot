@@ -2,7 +2,14 @@ import { buildTranscriptTokens, getTranscriptText, lowAccuracyThreshold } from "
 import type { FontPreference, FontSizePreference, ThemeId } from "../types/config";
 import type { GradeResult } from "../types/grading";
 import type { SpeechAssessmentResult } from "../types/speech";
-import type { CorrectionCategory, ReferenceTheme, ResultTab, TranscriptChunk, WorkspaceResult } from "./workspaceTypes";
+import type {
+  CorrectionCategory,
+  RagUsageInfo,
+  ReferenceTheme,
+  ResultTab,
+  TranscriptChunk,
+  WorkspaceResult,
+} from "./workspaceTypes";
 
 export const recordsStorageKey = "ielts_copilot_correction_records";
 
@@ -89,7 +96,11 @@ export function getScoreData(result: WorkspaceResult | null, activeTab: ResultTa
   return null;
 }
 
-export function mapGradeResultToWorkspaceResult(result: GradeResult, transcriptText: string): WorkspaceResult {
+export function mapGradeResultToWorkspaceResult(
+  result: GradeResult,
+  transcriptText: string,
+  ragUsage?: RagUsageInfo,
+): WorkspaceResult {
   const transcript = splitTextIntoTranscript(transcriptText);
   return {
     overallScore: result.overall_band,
@@ -128,12 +139,14 @@ export function mapGradeResultToWorkspaceResult(result: GradeResult, transcriptT
     generalFeedback: result.personal_style_comment,
     modelAnswer: result.reconstructed_essay,
     transcript,
+    ragUsage,
   };
 }
 
 export function mapSpeechAssessmentToWorkspaceResult(
   result: SpeechAssessmentResult,
   transcriptGradeResult?: GradeResult | null,
+  ragUsage?: RagUsageInfo,
 ): WorkspaceResult {
   const transcriptText = getTranscriptText(result);
   const transcript = splitTextIntoTranscript(transcriptText);
@@ -141,7 +154,7 @@ export function mapSpeechAssessmentToWorkspaceResult(
   const pronunciationScore = normalizeAzureScoreToBand(result.overall.pronunciationScore);
   const fluencyScore = normalizeAzureScoreToBand(result.overall.fluencyScore);
   const textWorkspaceResult = transcriptGradeResult
-    ? mapGradeResultToWorkspaceResult(transcriptGradeResult, transcriptText)
+    ? mapGradeResultToWorkspaceResult(transcriptGradeResult, transcriptText, ragUsage)
     : null;
   const lowAccuracyWords = result.words
     .filter((word) => word.accuracyScore !== undefined && word.accuracyScore < lowAccuracyThreshold)
@@ -200,6 +213,7 @@ export function mapSpeechAssessmentToWorkspaceResult(
     transcript,
     transcriptTokens,
     speechAssessment: result,
+    ragUsage: textWorkspaceResult?.ragUsage,
   };
 }
 

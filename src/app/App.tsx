@@ -1,7 +1,5 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { GraduationCap } from "lucide-react";
-import { CorpusPage } from "../features/corpus/CorpusPage";
-import { SettingsPage } from "../features/settings/SettingsPage";
 import { useAppConfig } from "../hooks/useAppConfig";
 import { useGradingWorkflow } from "../hooks/useGradingWorkflow";
 import { useSessionHistory } from "../hooks/useSessionHistory";
@@ -13,6 +11,21 @@ import { HelpModal } from "../components/workspace/HelpModal";
 import { MacMenuBar } from "../components/workspace/MacMenuBar";
 import { WindowStatusBar } from "../components/workspace/WindowStatusBar";
 import { Workspace } from "../components/workspace/Workspace";
+
+const CorpusPage = lazy(() =>
+  import("../features/corpus/CorpusPage").then((module) => ({ default: module.CorpusPage })),
+);
+const SettingsPage = lazy(() =>
+  import("../features/settings/SettingsPage").then((module) => ({ default: module.SettingsPage })),
+);
+
+function LazyPageFallback({ label }: { label: string }) {
+  return (
+    <div className="grid min-h-[220px] place-items-center rounded-lg border border-border bg-elevated/40 p-6 text-sm font-semibold text-muted">
+      {label}
+    </div>
+  );
+}
 
 export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -149,7 +162,9 @@ export function App() {
               ) : null}
 
               {corpusOpen ? (
-                <CorpusPage />
+                <Suspense fallback={<LazyPageFallback label="正在加载教师案例库..." />}>
+                  <CorpusPage />
+                </Suspense>
               ) : (
                 <Workspace
                   activeRecord={sessionHistory.activeRecord}
@@ -177,14 +192,16 @@ export function App() {
 
       {settingsOpen ? (
         <div className="fixed inset-0 z-[2147483002] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <SettingsPage
-            config={appConfig.config}
-            onClose={closeSettings}
-            onConfigChange={appConfig.applyConfig}
-            onSaved={closeSettingsAfterSave}
-            onTypographyPreview={appConfig.setPreviewTypography}
-            onThemePreview={appConfig.setPreviewTheme}
-          />
+          <Suspense fallback={<LazyPageFallback label="正在加载设置..." />}>
+            <SettingsPage
+              config={appConfig.config}
+              onClose={closeSettings}
+              onConfigChange={appConfig.applyConfig}
+              onSaved={closeSettingsAfterSave}
+              onTypographyPreview={appConfig.setPreviewTypography}
+              onThemePreview={appConfig.setPreviewTheme}
+            />
+          </Suspense>
         </div>
       ) : null}
 

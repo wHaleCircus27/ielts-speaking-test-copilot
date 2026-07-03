@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Rust backend:**
 - `cd src-tauri && cargo build` — Build Rust backend
-- `cd src-tauri && cargo test -- --test-threads=1` — Run Rust tests (must be sequential)
+- `cd src-tauri && cargo test` — Run Rust tests
 
 **Utilities:**
 - `pnpm azure:speech-preflight` — Verify Azure Speech SDK setup
@@ -29,6 +29,9 @@ Tauri 2 desktop app: React frontend communicates with a Rust backend via Tauri I
 - `src/components/` — Shared UI components
 
 **Backend** (`src-tauri/src/`):
+- `config.rs` — Local app configuration types, read/write commands, and public config projection
+- `constants.rs` — Shared backend constants
+- `errors.rs` — Structured `AppError` type serialized to the frontend
 - `grading.rs` — DeepSeek API integration for text evaluation
 - `media.rs` — FFmpeg transcoding (WAV 16kHz 16-bit mono PCM)
 - `speech.rs` — Azure Speech Services pronunciation assessment
@@ -55,5 +58,5 @@ Tauri 2 desktop app: React frontend communicates with a Rust backend via Tauri I
 ## Testing
 
 - Frontend: Vitest with jsdom environment and Testing Library
-- Rust: sequential test execution required (`--test-threads=1`)
+- Rust: default parallel `cargo test`; corpus SQLite tests use isolated `tempfile` databases
 - Test setup: `src/test/setup.ts`

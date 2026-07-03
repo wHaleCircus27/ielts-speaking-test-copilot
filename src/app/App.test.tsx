@@ -15,8 +15,26 @@ vi.mock("../lib/config", () => ({
 }));
 
 vi.mock("../lib/corpus", () => ({
+  buildTeacherCaseSearchQuery: vi.fn((question: string, answer: string) => {
+    const normalizedQuestion = question.trim();
+    const normalizedAnswer = answer.trim();
+    return normalizedQuestion && normalizedAnswer
+      ? `Question: ${normalizedQuestion}\nAnswer: ${normalizedAnswer}`
+      : normalizedAnswer || normalizedQuestion;
+  }),
   mapTeacherCaseMatchesToRagExamples: vi.fn((matches: TeacherCaseMatch[]) =>
     matches.slice(0, 3).map((match) => ({
+      originalText: match.case.originalText,
+      revisedText: match.case.revisedText,
+      teacherComment: match.case.teacherComment,
+      scoringPreference: match.case.scoringPreference,
+      score: match.score,
+    })),
+  ),
+  mapTeacherCaseMatchesToRagReferences: vi.fn((matches: TeacherCaseMatch[]) =>
+    matches.slice(0, 3).map((match) => ({
+      caseId: match.case.id,
+      score: match.score,
       originalText: match.case.originalText,
       revisedText: match.case.revisedText,
       teacherComment: match.case.teacherComment,
@@ -206,7 +224,7 @@ describe("App workspace", () => {
     expect(gradeSpeaking).toHaveBeenCalledWith({
       text: "This is a long enough IELTS speaking answer about a happy childhood memory.",
       part: "part2",
-      question: "Describe a happy event in your childhood",
+      question: undefined,
       ragExamples: [],
     });
   });
@@ -260,7 +278,7 @@ describe("App workspace", () => {
     });
     expect(gradeSpeaking).toHaveBeenCalledWith({
       text: "Hello world today clearly.",
-      question: "Describe a happy event in your childhood",
+      question: undefined,
       part: "part2",
       ragExamples: [],
     });
