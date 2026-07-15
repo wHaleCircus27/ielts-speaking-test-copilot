@@ -42,12 +42,13 @@
 | 阶段 | 目标 | 主要交付 |
 | --- | --- | --- |
 | MVP 1 | 基础工程与文本批改 | 桌面应用壳、设置、本地配置、DeepSeek 批改、结果页 |
-| MVP 2 | 媒体处理 | 文件导入、FFmpeg sidecar、WAV 转码、音频播放器 |
+| MVP 2 | 媒体处理 | 文件导入、FFmpeg/afconvert、WAV 转码、音频播放器 |
 | MVP 3 | 语音评估与播放同步 | Azure 发音评估、逐词时间戳、停顿、低分词、点击跳转 |
-| MVP 4 | 教师个性化 RAG | 教师案例录入、SQLite、JSON 向量存储、Embedding、Prompt 注入 |
+| MVP 4 | 教师个性化 RAG | 教师案例录入、SQLite f32 BLOB 向量存储、Embedding、Prompt 注入 |
 | MVP 5 | 稳定化与改进 | 测试补齐、错误体验、性能检查、架构改进、发布前验收 |
+| Release Hardening | 可交付闭环 | 安全边界、媒体可靠性、CI、安装包 smoke、真实服务验收 |
 
-当前状态：MVP 4 教师个性化 RAG 已全部完成（SQLite CRUD、智谱 embedding-3、cosine similarity Top-K、RAG Prompt 注入）。MVP 5 稳定化进行中，原有任务 R-401~R-403、R-405~R-406 已通过自动化验证，R-404 真实 Azure 桌面 UI 人工验收 deferred；附加改进任务 R-501~R-508 已完成，详见 `docs/development/11-mvp5-improvements.md`。
+当前状态：MVP 4 教师个性化 RAG 和 MVP 5 附加架构改进已完成。2026-07-10 发布审查发现真实桌面、安全和可重复交付缺口，当前结论为 No-Go；已进入 Release Hardening，详见 `docs/development/13-release-hardening.md`。
 
 ## 4. 功能模块
 
@@ -66,6 +67,8 @@
 - [09-testing-acceptance.md](docs/development/09-testing-acceptance.md)
 - [10-assessor-ui-redesign.md](docs/development/10-assessor-ui-redesign.md)
 - [11-mvp5-improvements.md](docs/development/11-mvp5-improvements.md)
+- [12-corpus-rag-improvements.md](docs/development/12-corpus-rag-improvements.md)
+- [13-release-hardening.md](docs/development/13-release-hardening.md)
 
 ## 5. 推荐实施顺序
 
@@ -77,14 +80,19 @@
 6. 实现 transcript 渲染和播放器同步。
 7. 实现教师 RAG 案例库和 Prompt 注入。
 8. 补齐测试、错误边界和人工验收清单。
+9. 完成发布加固、CI、安装包 smoke 和真实外部服务验收，满足 RC 退出标准。
 
 ## 6. 全局接口约定
 
 首版 Tauri commands 以业务能力命名，前端不直接访问本地文件系统、系统进程和密钥存储。
 
 ```ts
-type AppConfig = {
+type PublicAppConfig = {
   theme: "theme-claude" | "theme-animal" | "theme-glass";
+  typography: {
+    font: "system" | "serif" | "space" | "mono";
+    fontSize: "small" | "medium" | "large";
+  };
   deepseek: {
     apiKeyConfigured: boolean;
     baseUrl: string;
@@ -93,6 +101,13 @@ type AppConfig = {
       | "deepseek-v4-pro"
       | "deepseek-chat"
       | "deepseek-reasoner";
+  };
+  zhipu: {
+    apiKeyConfigured: boolean;
+    baseUrl: string;
+    model: string;
+    dimensions: 1024;
+    similarityThreshold: number;
   };
   azure: {
     keyConfigured: boolean;

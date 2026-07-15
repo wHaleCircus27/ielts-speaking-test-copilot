@@ -2236,7 +2236,7 @@ fn validate_zhipu_embedding_config(
     if config.dimensions != ZHIPU_EMBEDDING_DIMENSIONS {
         return Err(AppError::new(
             "ZHIPU_DIMENSIONS_INVALID",
-            "智谱 Embedding 维度必须是 2048。",
+            format!("智谱 Embedding 维度必须是 {ZHIPU_EMBEDDING_DIMENSIONS}。"),
         ));
     }
 
@@ -2745,22 +2745,22 @@ mod tests {
     #[test]
     fn filters_ready_embeddings_by_current_provider_model_and_dimensions() {
         let (_temp_dir, db_path) = temp_db_path("teacher-case-embedding-dimension-filter");
-        let old_dimension_case =
+        let non_current_dimension_case =
             create_teacher_case_at_path(&db_path, valid_input("I enjoy reading."))
-                .expect("create old dimension case");
+                .expect("create non-current dimension case");
         let current_dimension_case =
             create_teacher_case_at_path(&db_path, valid_input("I enjoy speaking English."))
                 .expect("create current dimension case");
-        let old_dimension_config = test_zhipu_config(1024);
+        let non_current_dimension_config = test_zhipu_config(2048);
         let current_dimension_config = test_zhipu_config(ZHIPU_EMBEDDING_DIMENSIONS);
 
         upsert_teacher_case_embedding_at_path(
             &db_path,
-            &old_dimension_case.id,
-            &vec![0.5; old_dimension_config.dimensions as usize],
-            &old_dimension_config,
+            &non_current_dimension_case.id,
+            &vec![0.5; non_current_dimension_config.dimensions as usize],
+            &non_current_dimension_config,
         )
-        .expect("store old dimension embedding");
+        .expect("store non-current dimension embedding");
         upsert_teacher_case_embedding_at_path(
             &db_path,
             &current_dimension_case.id,
@@ -2770,10 +2770,10 @@ mod tests {
         .expect("store current dimension embedding");
         set_teacher_case_embedding_status_at_path(
             &db_path,
-            &old_dimension_case.id,
+            &non_current_dimension_case.id,
             EmbeddingStatus::Ready,
         )
-        .expect("old ready status");
+        .expect("non-current ready status");
         set_teacher_case_embedding_status_at_path(
             &db_path,
             &current_dimension_case.id,

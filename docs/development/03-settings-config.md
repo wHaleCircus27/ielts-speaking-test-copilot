@@ -31,9 +31,9 @@
 - DeepSeek 默认模型为 `deepseek-v4-flash`，设置页主推 `deepseek-v4-flash` 与 `deepseek-v4-pro`。
 - 已保存的旧模型值 `deepseek-chat`、`deepseek-reasoner` 继续可被反序列化，避免旧本地配置读取失败。
 - `validate_deepseek_config` 会执行真实 `/models` 连通性探测，返回 `serviceReachable` 和 `availableModels`。
-- 智谱默认 Base URL 为 `https://open.bigmodel.cn/api/paas/v4`，Embedding 模型为 `embedding-3`，固定维度为 `2048`。
-- 智谱维度限制为 `2048`，Key 仅保存在本地配置并由 Rust command 层读取。
-- 读取旧本地配置时会将历史维度归一为 `2048`；SQLite `teacher_case_embeddings.dimensions` 保留历史维度记录，检索只使用 provider、model 和当前 `2048` 维度匹配的向量，旧 `1024` 向量需重建后参与检索。
+- 智谱默认 Base URL 为 `https://open.bigmodel.cn/api/paas/v4`，Embedding 模型为 `embedding-3`，固定维度为 `1024`。
+- 智谱维度限制为 `1024`，Key 仅保存在本地配置并由 Rust command 层读取。
+- 读取旧本地配置时会将历史维度归一为 `1024`；SQLite `teacher_case_embeddings.dimensions` 保留维度元数据，检索只使用 provider、model 和当前 `1024` 维度匹配的向量。当前不存在 2048 维持久化向量或 query cache，因此无需增加数据迁移或缓存清理。
 - Azure Speech 配置只用于短期 Speech token 签发和真实音频评估；Vocabulary、Grammar、Topic 统一由 DeepSeek 基于 transcript、题目和 RAG 案例判断。
 - 设置弹窗 UI 以 [10-assessor-ui-redesign.md](10-assessor-ui-redesign.md) 为准；当前实现包含 `外观主题`、`字体与字号`、`AI 引擎模型` 三个 tab，并在 AI tab 管理 DeepSeek、智谱和 Azure 配置。
 
@@ -42,6 +42,10 @@
 ```ts
 type PublicAppConfig = {
   theme: "theme-claude" | "theme-animal" | "theme-glass";
+  typography: {
+    font: "system" | "serif" | "space" | "mono";
+    fontSize: "small" | "medium" | "large";
+  };
   deepseek: {
     apiKeyConfigured: boolean;
     baseUrl: string;
@@ -55,7 +59,8 @@ type PublicAppConfig = {
     apiKeyConfigured: boolean;
     baseUrl: string;
     model: string;
-    dimensions: 2048;
+    dimensions: 1024;
+    similarityThreshold: number;
   };
   azure: {
     keyConfigured: boolean;
@@ -66,6 +71,7 @@ type PublicAppConfig = {
 
 type SaveAppConfigInput = {
   theme: PublicAppConfig["theme"];
+  typography: PublicAppConfig["typography"];
   deepseek: {
     apiKey?: string;
     baseUrl: string;
@@ -76,6 +82,7 @@ type SaveAppConfigInput = {
     baseUrl: string;
     model: string;
     dimensions: PublicAppConfig["zhipu"]["dimensions"];
+    similarityThreshold?: number;
   };
   azure: {
     key?: string;
@@ -139,8 +146,8 @@ type ConfigValidationResult = {
 ## 当前验证记录
 
 - `pnpm typecheck` 通过。
-- `pnpm test` 通过：7 个测试文件，27 个测试。
-- `cd src-tauri && cargo test` 通过：31 个 Rust 测试。
+- `pnpm test` 通过：9 个测试文件，33 个测试。
+- `cd src-tauri && cargo test --locked` 通过：49 个 Rust 测试。
 - `pnpm build` 通过。
 - 使用 `test-resource/deepseekApiKey.txt` 本地测试 Key 验证 `/models` 返回 `deepseek-v4-flash`、`deepseek-v4-pro`，并验证 `deepseek-v4-flash` `/chat/completions` 返回 JSON。测试输出未包含 API Key。
 

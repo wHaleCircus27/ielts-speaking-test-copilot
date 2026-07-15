@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsPage } from "./SettingsPage";
 import { saveAppConfig } from "../../lib/config";
 import { validateDeepSeekConfig } from "../../lib/grading";
-import { defaultPublicConfig } from "../../types/config";
+import { defaultPublicConfig, ZHIPU_EMBEDDING_DIMENSIONS } from "../../types/config";
 
 vi.mock("../../lib/config", () => ({
   clearAzureKey: vi.fn(),
@@ -75,5 +75,34 @@ describe("SettingsPage", () => {
       }),
     );
     expect(onSaved).toHaveBeenCalledTimes(1);
+  });
+
+  it("displays and submits the fixed Zhipu embedding dimensions", async () => {
+    render(
+      <SettingsPage
+        config={defaultPublicConfig}
+        onClose={vi.fn()}
+        onConfigChange={vi.fn()}
+        onSaved={vi.fn()}
+        onThemePreview={vi.fn()}
+        onTypographyPreview={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "AI 引擎模型" }));
+
+    expect(screen.getByLabelText("向量维度")).toHaveValue(String(ZHIPU_EMBEDDING_DIMENSIONS));
+
+    fireEvent.click(screen.getByRole("button", { name: "完成并应用" }));
+
+    await waitFor(() => {
+      expect(saveAppConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          zhipu: expect.objectContaining({
+            dimensions: ZHIPU_EMBEDDING_DIMENSIONS,
+          }),
+        }),
+      );
+    });
   });
 });

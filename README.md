@@ -4,12 +4,14 @@
 
 ## 当前进展
 
-- MVP 1 基础工程、设置、主题和 DeepSeek 文本批改链路已进入收口阶段；DeepSeek 已接入 `deepseek-v4-flash` / `deepseek-v4-pro`，默认模型为 `deepseek-v4-flash`。
+- MVP 1 基础工程、设置、主题和 DeepSeek 文本批改链路已完成并通过自动化验证；DeepSeek 已接入 `deepseek-v4-flash` / `deepseek-v4-pro`，默认模型为 `deepseek-v4-flash`。
 - 设置页已提供 DeepSeek `/models` 连通性测试，返回可用模型列表和当前模型可用状态，不回显或记录 API Key。
 - MVP 2 已完成媒体导入与 FFmpeg/afconvert 转码基础链路。
 - MVP 3 已代码收口：按微软文档接入 Azure Speech SDK continuous mode 长音频发音评估、逐词 transcript、停顿标注、低分词、点击跳转和播放高亮。
-- MVP 3 当前验收依据为微软文档结构一致性和 mock 自动化验证；真实 Azure API Key、region、token 与 30 秒以上长音频验证已暂缓到后续人工验收。
-- MVP 4 已接入教师案例库、智谱 `embedding-3` 向量重建、本地 SQLite f32 BLOB 向量存储、配置化阈值、query cache、诊断搜索预览和 RAG Prompt 注入准备层；真实智谱 2048 维基准可用本地 benchmark 脚本补充。
+- MVP 3 当前验收依据为微软文档结构一致性和 mock 自动化验证；真实 Azure API Key、region、token 与 30 秒以上长音频验证已并入 RH-405，作为 RC 阻断门槛。
+- MVP 4 已接入教师案例库、智谱 `embedding-3` 1024 维向量重建、本地 SQLite f32 BLOB 向量存储、配置化阈值、query cache、诊断搜索预览和 RAG Prompt 注入准备层；真实智谱 1024 维基准可用本地 benchmark 脚本补充。
+- MVP 5 稳定化附加改进 R-501~R-508 已完成：工作台拆分、自定义 hooks、Rust 模块拆分、并行 Rust 测试、Vite chunk 拆分和 lazy 页面加载均已落地。
+- 第 12 章教师案例库 RAG 改进 Phase 1~4 已完成；当前进入 [发布加固与可交付闭环迭代](docs/development/13-release-hardening.md)，发布结论为 No-Go，待真实桌面、安全、媒体可靠性、CI、安装包和真实服务验收闭环后进入 RC。
 
 详细计划见：
 
@@ -53,8 +55,10 @@ FFmpeg 查找顺序：
 1. `FFMPEG_PATH` 环境变量。
 2. `src-tauri/binaries/ffmpeg`。
 3. `src-tauri/binaries/ffmpeg-aarch64-apple-darwin`。
-4. 系统 `ffmpeg`。
-5. macOS 开发环境中，如 FFmpeg 缺失，则使用系统 `afconvert` 作为后备转码器。
+4. `./binaries/ffmpeg`。
+5. `./binaries/ffmpeg-aarch64-apple-darwin`。
+6. 系统 `ffmpeg`。
+7. macOS 开发环境中，如 FFmpeg 缺失，则使用系统 `afconvert` 作为后备转码器。
 
 首版不提交真实 FFmpeg 二进制到仓库。
 

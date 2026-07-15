@@ -2,7 +2,7 @@
 
 ## 目标
 
-支持用户导入 MP4、MP3、M4A、WAV，并通过本地 FFmpeg sidecar 转码为 Azure 语音评估适用的 WAV 格式。
+支持用户导入 MP4、MP3、M4A、WAV，并通过本地可执行的 FFmpeg 或 macOS `afconvert` 转码为 Azure 语音评估适用的 WAV 格式。
 
 ## 不做什么
 
@@ -22,7 +22,7 @@
 
 - 前端使用 Tauri dialog 或拖拽事件获取文件路径。
 - Rust command 校验扩展名和文件存在性。
-- FFmpeg 作为 Tauri sidecar 放置在 `src-tauri/binaries`。
+- 后端依次检查 `FFMPEG_PATH`、仓库/运行目录下的候选 FFmpeg 和系统 `ffmpeg`；当前仓库不捆绑真实 FFmpeg 二进制。
 - macOS 开发环境中如 FFmpeg 缺失，可使用系统 `afconvert` 作为后备转码器，输出参数保持一致。
 - 输出格式固定为 `WAV 16kHz 16bit mono PCM`。
 - 输出文件写入应用缓存目录或用户指定临时目录。
@@ -64,7 +64,7 @@ type MediaTranscodeResult = {
 
 - M-001：实现媒体文件选择和拖拽区域。
 - M-002：实现扩展名和空文件校验。
-- M-003：配置 FFmpeg sidecar。
+- M-003：配置本地 FFmpeg 候选路径和系统命令查找。
 - M-004：实现 Rust 转码 command。
 - M-005：实现转码进度和失败状态。
 - M-006：实现音频播放器加载输出 WAV。

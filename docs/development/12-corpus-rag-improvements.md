@@ -22,7 +22,7 @@
 
 ### 现状概述
 
-当前实现为「教师案例库」：每条记录是 `(originalText, revisedText, teacherComment, scoringPreference?)` 四元组，整条拼接后调用智谱 `embedding-3`（固定 2048 维）生成单个向量存入 SQLite；批改时前端以学生答案全文检索 Top-3 案例，注入 DeepSeek Prompt 的 `<teacher_examples>` XML 块。定位本身符合 08 号文档设计，问题集中在实现方式与检索质量。
+本章初始审查时的实现为「教师案例库」：每条记录是 `(originalText, revisedText, teacherComment, scoringPreference?)` 四元组，整条拼接后调用智谱 `embedding-3`（当时固定 2048 维）生成单个向量存入 SQLite；批改时前端以学生答案全文检索 Top-3 案例，注入 DeepSeek Prompt 的 `<teacher_examples>` XML 块。定位本身符合 08 号文档设计，问题集中在实现方式与检索质量。
 
 ### P0 缺陷 — 可靠性与部署风险
 
@@ -76,7 +76,7 @@
 - 失败状态落地：embedding 失败时写入 `failed` 状态与错误摘要字段（新增 `embedding_error TEXT`），覆盖 D-09。
 - 有限重试：embedding 请求对 429/超时/5xx 做最多 2 次指数退避重试，覆盖 D-11。
 - 检索 query 拼入题目上下文（`question + answer`），并去除 Workspace 默认硬编码题目（改为空值 + 占位提示），覆盖 D-12。
-- 用真实智谱 Key 补做 `dimensions=2048` 的延迟/质量基准，回填 [08-teacher-rag.md](08-teacher-rag.md) 验证记录，覆盖 D-16 前半；本次实现只补充本地验证说明，不读取或提交真实 Key。
+- 本章制定时原计划用真实智谱 Key 补做 `dimensions=2048` 的延迟/质量基准以覆盖 D-16 前半；固定维度现已调整为 `1024`，当前验收改由 RH-405 补做 `dimensions=1024` 基准并回填 [08-teacher-rag.md](08-teacher-rag.md)。实现和文档均不得读取或提交真实 Key。
 
 ### Phase 3（P2）透明度与维护性
 
@@ -116,7 +116,7 @@
 - CRI-204：`failed` 状态与 `embedding_error` 字段落地。已完成。
 - CRI-205：embedding 请求指数退避重试（429/超时/5xx，最多 2 次）。已完成。
 - CRI-206：检索 query 拼入题目上下文；移除 Workspace 硬编码默认题。已完成。
-- CRI-207：真实 Key 补做 2048 维基准，回填 08 号文档验证记录。Deferred：仅本地人工执行，不提交 Key。
+- CRI-207：本章原任务为真实 Key 补做 2048 维基准；当前待验收目标已随固定维度调整为 1024，并由 RH-405 承接。仅本地人工执行并回填 08 号文档，不提交 Key。
 
 ### Phase 3
 
@@ -156,7 +156,7 @@
 - Rust 单元测试：参数化写入的转义边界（引号/换行/CJK/emoji）、f32 BLOB 编解码往返、阈值过滤、query hash/cache/LRU、检索诊断、事务回滚。
 - Rust 集成测试：`search_teacher_cases_at_path` 端到端排序与阈值行为（当前无此覆盖）；旧库迁移用例（构造旧 schema 临时库）。
 - 前端 Vitest：`mapTeacherCaseMatchesToRagExamples` 的 score 透传、Settings 阈值保存、RAG 提示信息渲染、诊断搜索预览和 pending/failed 队列重建。
-- 人工验收：真实智谱 Key 下执行 `pnpm zhipu:embedding-benchmark`，补充 2048 维基准与检索预览体验。
+- 人工验收：真实智谱 Key 下执行 `pnpm zhipu:embedding-benchmark`，补充当前 1024 维基准与检索预览体验。
 
 ## 风险与后续扩展
 

@@ -1,13 +1,12 @@
 import { invokeCommand } from "./tauri";
 import {
   defaultPublicConfig,
+  ZHIPU_EMBEDDING_DIMENSIONS,
   type PublicAppConfig,
   type SaveAppConfigInput,
-  type ZhipuEmbeddingDimensions,
 } from "../types/config";
 
 const browserPreviewConfigStorageKey = "ielts-speaking-test-copilot.preview-config";
-const zhipuEmbeddingDimensions: ZhipuEmbeddingDimensions = 2048;
 
 function isTauriRuntimeAvailable() {
   return "__TAURI_INTERNALS__" in window;
@@ -36,7 +35,7 @@ function readBrowserPreviewConfig(): PublicAppConfig {
         apiKeyConfigured: Boolean(parsedConfig.zhipu?.apiKeyConfigured),
         baseUrl: parsedConfig.zhipu?.baseUrl ?? defaultPublicConfig.zhipu.baseUrl,
         model: parsedConfig.zhipu?.model ?? defaultPublicConfig.zhipu.model,
-        dimensions: zhipuEmbeddingDimensions,
+        dimensions: ZHIPU_EMBEDDING_DIMENSIONS,
         similarityThreshold:
           typeof parsedConfig.zhipu?.similarityThreshold === "number"
             ? parsedConfig.zhipu.similarityThreshold
@@ -84,7 +83,7 @@ export function saveAppConfig(input: SaveAppConfigInput) {
         apiKeyConfigured: Boolean(input.zhipu.apiKey?.trim()) || currentConfig.zhipu.apiKeyConfigured,
         baseUrl: input.zhipu.baseUrl.trim(),
         model: input.zhipu.model.trim(),
-        dimensions: input.zhipu.dimensions,
+        dimensions: ZHIPU_EMBEDDING_DIMENSIONS,
         similarityThreshold:
           input.zhipu.similarityThreshold ??
           currentConfig.zhipu.similarityThreshold ??

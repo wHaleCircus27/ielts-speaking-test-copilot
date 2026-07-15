@@ -23,6 +23,7 @@ import type {
   SaveAppConfigInput,
   ThemeId,
 } from "../../types/config";
+import { ZHIPU_EMBEDDING_DIMENSIONS } from "../../types/config";
 import type { AppError } from "../../types/errors";
 
 type SettingsPageProps = {
@@ -132,7 +133,7 @@ export const SettingsPage = forwardRef<SettingsPageHandle, SettingsPageProps>(fu
       apiKey: "",
       baseUrl: config.zhipu.baseUrl,
       model: config.zhipu.model,
-      dimensions: config.zhipu.dimensions,
+      dimensions: ZHIPU_EMBEDDING_DIMENSIONS,
       similarityThreshold: config.zhipu.similarityThreshold,
     },
     azure: {
@@ -164,7 +165,7 @@ export const SettingsPage = forwardRef<SettingsPageHandle, SettingsPageProps>(fu
         apiKey: "",
         baseUrl: config.zhipu.baseUrl,
         model: config.zhipu.model,
-        dimensions: config.zhipu.dimensions,
+        dimensions: ZHIPU_EMBEDDING_DIMENSIONS,
         similarityThreshold: config.zhipu.similarityThreshold,
       },
       azure: {
@@ -196,6 +197,7 @@ export const SettingsPage = forwardRef<SettingsPageHandle, SettingsPageProps>(fu
           apiKey: form.zhipu.apiKey?.trim() || undefined,
           baseUrl: form.zhipu.baseUrl.trim(),
           model: form.zhipu.model.trim(),
+          dimensions: ZHIPU_EMBEDDING_DIMENSIONS,
           similarityThreshold: Number(form.zhipu.similarityThreshold),
         },
         azure: {
@@ -640,7 +642,7 @@ export const SettingsPage = forwardRef<SettingsPageHandle, SettingsPageProps>(fu
                       }
                       className={selectClassName}
                     >
-                      <option value={2048}>2048</option>
+                      <option value={ZHIPU_EMBEDDING_DIMENSIONS}>{ZHIPU_EMBEDDING_DIMENSIONS}</option>
                     </select>
                   </label>
 

@@ -92,7 +92,7 @@
 - 独立媒体页已提供语音评估调试入口。
 - 自动化测试已覆盖 Azure 响应映射、transcript token、主工作台和媒体页 mock 评估流程。
 - 已完成微软文档一致性核对：continuous mode、unscripted assessment、prosody `en-US` 限制、`EnableMiscue` 边界和 token 密钥边界均已对齐。
-- 真实 Azure Speech Key + 30 秒以上长音频人工验收已 deferred，不作为 MVP 3 代码收口阻塞项。
+- 真实 Azure Speech Key + 30 秒以上长音频人工验收此前未闭环，现已并入第 13 章 RH-405，并作为 RC 阻断门槛。
 
 ## MVP 4：教师个性化 RAG
 
@@ -106,7 +106,7 @@
 - R-302：实现案例录入页面。
 - R-303：建立 SQLite 表。
 - R-304：接入智谱 `embedding-3`。
-- R-305：建立向量检索。实际实现为 SQLite JSON 向量存储 + Rust 层 cosine similarity，`sqlite-vec` 迁移列为后续扩展。
+- R-305：建立向量检索。实际实现为 SQLite f32 BLOB 向量存储 + Rust 层 cosine similarity，`sqlite-vec` 迁移列为后续扩展。
 - R-306：实现 Top-K 检索。
 - R-307：将案例格式化为 XML 片段注入 Prompt。
 
@@ -120,11 +120,11 @@
 ### 当前状态
 
 - 教师案例 CRUD（新增、查看、编辑、单条删除）已完成，使用 SQLite 本地存储。
-- 智谱 `embedding-3` 已接入，固定 `dimensions=2048`，支持重建向量。
-- 向量检索使用 SQLite JSON 存储 + Rust 层 cosine similarity Top-K，未使用 `sqlite-vec`（列为后续扩展）。
+- 智谱 `embedding-3` 已接入，固定 `dimensions=1024`，支持重建向量。
+- 向量检索使用 SQLite f32 BLOB 存储 + Rust 层 cosine similarity Top-K，未使用 `sqlite-vec`（列为后续扩展）。
 - RAG Prompt 注入已完成：最多 3 个 XML `<example>`，含清洗、截断和 XML 转义。
 - 批改时自动检索注入；智谱 Key 缺失或检索失败时不阻塞普通批改。
-- Deferred：真实智谱 API Key `dimensions=2048` 基准测试和 Tauri 桌面 UI 人工验收。
+- 真实智谱 API Key `dimensions=1024` 基准测试和 Tauri 桌面 UI 人工验收并入第 13 章 RH-405，作为 RC 阻断门槛。
 
 ## MVP 5：稳定化
 
@@ -154,7 +154,7 @@
 
 - R-501：抽取 5 个自定义 Hooks（useGradingWorkflow、useMediaWorkflow、useTranscriptPlayback、useSessionHistory、useAppConfig）。已完成。
 - R-502：抽取 6 个 UI 组件（MacMenuBar、FinderSidebar、WorkspaceInput、WorkspaceResult、TranscriptPanel、WindowStatusBar）。已完成。
-- R-503：App.tsx 瘦身至 ≤ 500 行并集成验证。已完成：`src/app/App.tsx` 当前 196 行。
+- R-503：App.tsx 瘦身至 ≤ 500 行并集成验证。已完成：`src/app/App.tsx` 当前 213 行。
 - R-504：Rust lib.rs 拆分为 config.rs、constants.rs、errors.rs 模块。已完成。
 - R-505：Rust 测试引入 tempfile 实现并行化，移除 `--test-threads=1` 约束。已完成。
 - R-506：Vite manual chunks 配置，分离 React、Tauri、lucide 和 Azure Speech SDK。已完成。
@@ -171,5 +171,25 @@
 ### 当前状态
 
 - R-401~R-403、R-405~R-406 已通过自动化验证。
-- R-404 手动验收 deferred，等待真实 Azure Speech Key。
+- R-404 手动验收已拆分并入第 13 章：三套主题切换由 RH-404 `.app` smoke 承接，真实 Azure 播放同步由 RH-405 承接，均作为 RC 门槛。
 - R-501~R-508 已完成；`pnpm build` 已无单 chunk > 500 kB 警告，Rust 测试已恢复默认并行 `cargo test`。
+
+## 发布加固与可交付闭环迭代（当前）
+
+### 目标
+
+把已完成核心功能的开发版本收口为可在目标 Apple Silicon macOS 设备重复构建、安装和验收的内部 Release Candidate。
+
+### 当前状态
+
+- 2026-07-10 发布审查结论为 No-Go。
+- P0 阻断项包括 Tauri asset protocol、外部服务 endpoint 与 Key 绑定、批改失败输入丢失、历史音频错配。
+- P1 工作包括 CSP/capabilities、Keychain、错误脱敏、依赖修复、媒体资源治理、CI、安装包 smoke 和真实服务验收。
+- 详细任务、依赖、工时、测试矩阵和 RC 退出标准见 [13-release-hardening.md](13-release-hardening.md)。
+
+### 发布门槛
+
+- 第 13 章任务表列出的 21 项 RH 任务全部完成并具备验收证据。
+- fresh clone 自动验证、CI、生产依赖审计和 `.app` smoke test 全部通过。
+- DeepSeek、Azure 30 秒以上长音频和智谱 1024 维真实服务验收完成。
+- 任一门槛未满足时保持 No-Go，不再以 deferred 方式绕过核心链路。

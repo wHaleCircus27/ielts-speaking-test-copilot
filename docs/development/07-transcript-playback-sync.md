@@ -92,7 +92,7 @@ type TranscriptToken =
 ## 当前验证记录
 
 - `pnpm test` 已覆盖 transcript token 生成、Azure 词序排序、超过 2 秒停顿、低分词音素 tooltip、当前词查找、媒体页和主工作台评估后渲染。
-- 真实长音频下的人工播放同步验收继续 deferred；后续拿到真实 Azure Speech Key 后，用 30 秒以上 WAV 补验 continuous pronunciation assessment、点击跳转和播放高亮。
+- 真实长音频下的人工播放同步验收尚未完成；已并入 RH-405，拿到真实 Azure Speech Key 后使用 30 秒以上 WAV 验证 continuous pronunciation assessment、点击跳转和播放高亮。
 
 ## 风险与后续扩展
 

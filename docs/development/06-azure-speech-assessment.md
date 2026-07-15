@@ -96,7 +96,7 @@ type SpeechWordAssessment = {
 - `en-US` 下启用 prosody assessment；其他 language 不强制要求 prosody 返回。
 - DeepSeek 文本评分可选依赖 DeepSeek Key；配置缺失或请求失败时不阻塞 Azure Speech 发音评估。
 - continuous mode 不支持 `EnableMiscue`，遗漏和插入不作为 MVP3 当前必达能力。
-- MVP 3 真实 Azure Key 场景验收继续 deferred；当前仅以微软文档结构一致性和 mock 自动化验证作为收口依据。
+- MVP 3 真实 Azure Key 场景尚未完成；已并入 RH-405，作为 RC 阻断门槛。当前代码收口依据仍为微软文档结构一致性和 mock 自动化验证。
 - 已新增真实 Key 本地预检脚本：`pnpm azure:speech-preflight -- --region <region> --language en-US`。脚本只验证 token endpoint 和 WAV 样本格式，不打印 Azure Key 或短期 token。
 
 ## 验收标准
@@ -116,13 +116,13 @@ type SpeechWordAssessment = {
 - 集成测试：mock DeepSeek 成功和失败；失败时仍保留 Azure Speech 发音报告。
 - 手动测试：短音频、长音频、低质量音频。
 
-## 当前验证记录
+## MVP 3 阶段验证记录（历史）
 
 - `pnpm typecheck` 通过。
-- `pnpm test` 通过：7 个测试文件，27 个测试；MVP 3 mock 覆盖 Azure detailed JSON 映射、空词列表、非法 JSON、媒体页和主工作台 UI mock 评估流程。
-- `pnpm build` 通过；存在 Azure Speech SDK 引入后的 chunk size warning。
-- `cd src-tauri && cargo test -- --test-threads=1` 通过：31 个 Rust 测试。曾出现一次并行执行时 MVP 4 corpus CRUD 单测偶发 `CORPUS_CASE_NOT_FOUND`，精确复跑和串行全量复跑均通过，暂不影响 MVP 3 链路验收结论。
-- 本次 MVP 3 CLI 验收不执行 Tauri 真实桌面 UI 人工流程；真实 continuous pronunciation assessment 上传、点击跳转和播放高亮继续 deferred。
+- MVP 3 收口时 `pnpm test` 通过：7 个测试文件，27 个测试；mock 覆盖 Azure detailed JSON 映射、空词列表、非法 JSON、媒体页和主工作台 UI 评估流程。
+- MVP 3 收口时 `pnpm build` 通过，但存在 Azure Speech SDK 引入后的 chunk size warning；该 warning 已在后续 R-506/R-507 分包中消除。
+- MVP 3 收口时 `cd src-tauri && cargo test -- --test-threads=1` 通过 31 个测试；后续 corpus 测试已使用 `tempfile` 隔离，当前默认并行 Rust 测试结果以 09 号文档为准。
+- MVP 3 CLI 验收未执行 Tauri 真实桌面 UI；continuous pronunciation assessment 上传、点击跳转和播放高亮现由 RH-405 承接。
 - 真实 Key 到位后的前置命令：`pnpm azure:speech-preflight -- --region <region> --language en-US`。默认使用 `test-resource/azureSpeechKey.txt` 或 `AZURE_SPEECH_KEY`，默认检查 `test-resource/speakTest-afconvert-16k-mono.wav` 与 `test-resource/speakTest-nvidia-asr.wav`。
 - Azure Speech 真实 Key 连通性预检通过：使用本地 `test-resource/azureApikey.txt` 中第一条可用 Key、region `eastasia`、language `en-US` 请求 token endpoint，HTTP 200，短期 token 非空；`test-resource/speakTest-afconvert-16k-mono.wav` 与 `test-resource/speakTest-nvidia-asr.wav` 均为 `1 ch, 16000 Hz, Int16`。测试输出未包含 Azure Key 或短期 token。
 - 媒体链路 mock 验证：Azure Speech 成功后会调用 DeepSeek `grade_speaking` 补充文本维度；DeepSeek 不可用时不阻塞发音报告。
@@ -143,4 +143,4 @@ type SpeechWordAssessment = {
 
 - Azure Speech SDK 已在前端 webview 侧接入，Rust 侧不直接集成 Azure SDK。
 - 参考文本缺失时评估维度可能受限，UI 需解释当前模式。
-- 真实 Azure Key + 30 秒以上长音频人工验收已 deferred；需要在本地配置 Azure Speech Key 后补验收记录。
+- 真实 Azure Key + 30 秒以上长音频人工验收尚未完成；需要在本地配置 Azure Speech Key 后按 RH-405 补齐验收记录。

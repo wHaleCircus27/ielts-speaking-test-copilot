@@ -25,8 +25,8 @@
 
 - 本地 SQLite 通过 Rust `rusqlite` bundled 访问，不依赖用户系统安装 `sqlite3` CLI。
 - 数据库打开时启用 `foreign_keys` 和 `busy_timeout`；多步写入使用事务。
-- 当前阶段已接入智谱 `embedding-3`：`POST https://open.bigmodel.cn/api/paas/v4/embeddings`，Bearer 鉴权，固定 `dimensions=2048`，请求超时 `45s`，对 timeout、429、5xx 最多重试 2 次。
-- 当前阶段使用 `teacher_case_embeddings` SQLite 表存储 f32 little-endian BLOB 向量，并在 Rust 层做 cosine similarity Top-K；检索按 provider、model 和当前 `2048` 维度过滤向量，旧维度向量保留但需重建后参与检索，后续可迁移到 `sqlite-vec`。
+- 当前阶段已接入智谱 `embedding-3`：`POST https://open.bigmodel.cn/api/paas/v4/embeddings`，Bearer 鉴权，固定 `dimensions=1024`，请求超时 `45s`，对 timeout、429、5xx 最多重试 2 次。
+- 当前阶段使用 `teacher_case_embeddings` SQLite 表存储 f32 little-endian BLOB 向量，并在 Rust 层做 cosine similarity Top-K；检索按 provider、model 和当前 `1024` 维度过滤向量，非当前维度向量不参与检索。当前不存在 2048 维持久化数据，因此无需迁移；后续可按数据规模评估 `sqlite-vec`。
 - 当前阶段使用 `teacher_case_query_embeddings` SQLite 表缓存 query embedding；只保存 SHA-256 `query_hash`、provider、model、dimensions 和 f32 BLOB，不保存原始 query，按 `last_used_at` 保留最近 200 条。
 - 检索相似度阈值默认 `0.45`，可在 Settings AI 页配置；低于阈值的案例不注入 Prompt。
 - 当前阶段已接入 RAG Prompt 准备层：案例清洗、长度截断、XML 转义、最多 3 个带可选 `similarity` 属性的 `<example>`。
@@ -132,13 +132,13 @@ type TeacherCaseSearchDiagnostics = {
 
 ## 风险与后续扩展
 
-- 当前向量存储使用 f32 BLOB；`dimensions INTEGER` 字段可兼容 `2048` 维向量和历史旧维度记录，数据量增大后应迁移到 `sqlite-vec`。
+- 当前向量存储使用 1024 维 f32 BLOB；`dimensions INTEGER` 字段继续记录向量维度并用于严格过滤，数据量增大后应迁移到 `sqlite-vec`。
 - 删除案例只能单个明确路径或记录操作，不做批量删除能力。
 - 后续可扩展 CSV 导入、标签、query cache 命中率统计和离线校准集。
 
 ## 当前验证记录
 
-- 历史智谱 `embedding-3` 真实验证通过：`dimensions=1024`，单次 warmup 延迟约 `419.8 ms`，连续 5 次单次请求平均约 `210.4 ms`，p50 约 `209.1 ms`，p95 约 `263.8 ms`；当前已切换为 `dimensions=2048`，需使用 `pnpm zhipu:embedding-benchmark` 读取本地 `test-resource/zhipuApiKey.txt` 或 `ZHIPU_API_KEY` 环境变量重新补充真实基准，输出不得包含 Key、Authorization header 或原始敏感响应。
+- 历史智谱 `embedding-3` 真实验证通过：`dimensions=1024`，单次 warmup 延迟约 `419.8 ms`，连续 5 次单次请求平均约 `210.4 ms`，p50 约 `209.1 ms`，p95 约 `263.8 ms`。当前固定维度同为 `1024`，但该记录早于现有 `45s` 超时、有限重试、query cache 和诊断检索链路，仍需使用 `pnpm zhipu:embedding-benchmark` 读取本地 `test-resource/zhipuApiKey.txt` 或 `ZHIPU_API_KEY` 环境变量重新验收；输出不得包含 Key、Authorization header 或原始敏感响应。
 - 3 条教师案例重建与 1 次查询的端到端基准通过：总耗时约 `760 ms`，查询延迟约 `188.8 ms`，三条案例 embedding 延迟约 `209.8 ms`、`184.2 ms`、`175.7 ms`。
 - Top-K 排序结果：`fluency-focus` `0.9249`，`grammar-focus` `0.8418`，`vocabulary-focus` `0.8266`。
 - 真实智谱 API Key 测试未输出 Key；结果用于本地开发基准，不写入仓库数据文件。

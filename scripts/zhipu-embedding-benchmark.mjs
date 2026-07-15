@@ -3,6 +3,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+const defaultZhipuEmbeddingDimensions = 1024;
 const defaultSamples = [
   "Question: Describe a memorable journey.\nAnswer: I travelled to Hangzhou with my classmates and learned to plan better.",
   "Question: Do you prefer studying alone or with others?\nAnswer: I prefer studying with friends because discussion helps me notice my mistakes.",
@@ -17,7 +18,11 @@ try {
     zhipuApiKey,
     baseUrl: commandLineOptions.baseUrl ?? process.env.ZHIPU_BASE_URL ?? "https://open.bigmodel.cn/api/paas/v4",
     model: commandLineOptions.model ?? process.env.ZHIPU_EMBEDDING_MODEL ?? "embedding-3",
-    dimensions: Number(commandLineOptions.dimensions ?? process.env.ZHIPU_EMBEDDING_DIMENSIONS ?? 2048),
+    dimensions: Number(
+      commandLineOptions.dimensions ??
+        process.env.ZHIPU_EMBEDDING_DIMENSIONS ??
+        defaultZhipuEmbeddingDimensions,
+    ),
     samples: commandLineOptions.samples.length > 0 ? commandLineOptions.samples : defaultSamples,
   });
 } catch (error) {

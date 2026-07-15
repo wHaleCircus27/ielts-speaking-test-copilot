@@ -376,7 +376,7 @@ fn validate_config_input(input: &SaveAppConfigInput) -> Result<(), AppError> {
     if input.zhipu.dimensions != ZHIPU_EMBEDDING_DIMENSIONS {
         return Err(AppError::new(
             "CONFIG_INVALID",
-            "智谱 Embedding 维度必须是 2048。",
+            format!("智谱 Embedding 维度必须是 {ZHIPU_EMBEDDING_DIMENSIONS}。"),
         ));
     }
 
@@ -462,7 +462,7 @@ mod tests {
                 "apiKey": "zhipu-test",
                 "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
                 "model": "embedding-3",
-                "dimensions": 2048,
+                "dimensions": ZHIPU_EMBEDDING_DIMENSIONS,
                 "similarityThreshold": 0.62
             },
             "azure": {
@@ -546,7 +546,7 @@ mod tests {
                 "apiKey": null,
                 "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
                 "model": "embedding-3",
-                "dimensions": 2048
+                "dimensions": ZHIPU_EMBEDDING_DIMENSIONS
             },
             "azure": {
                 "key": null,
@@ -579,7 +579,7 @@ mod tests {
                 "apiKey": "",
                 "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
                 "model": "embedding-3",
-                "dimensions": 2048,
+                "dimensions": ZHIPU_EMBEDDING_DIMENSIONS,
                 "similarityThreshold": 1.01
             },
             "azure": {
@@ -592,5 +592,41 @@ mod tests {
 
         let error = validate_config_input(&input).expect_err("threshold should be rejected");
         assert_eq!(error.code, "CONFIG_INVALID");
+    }
+
+    #[test]
+    fn rejects_non_current_zhipu_embedding_dimensions() {
+        let input: SaveAppConfigInput = serde_json::from_value(serde_json::json!({
+            "theme": "theme-claude",
+            "typography": {
+                "font": "system",
+                "fontSize": "medium"
+            },
+            "deepseek": {
+                "apiKey": "",
+                "baseUrl": "https://api.deepseek.com",
+                "model": "deepseek-v4-flash"
+            },
+            "zhipu": {
+                "apiKey": "",
+                "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+                "model": "embedding-3",
+                "dimensions": 2048,
+                "similarityThreshold": TEACHER_CASE_SIMILARITY_THRESHOLD
+            },
+            "azure": {
+                "key": "",
+                "region": "",
+                "language": "en-US"
+            }
+        }))
+        .expect("config input");
+
+        let error = validate_config_input(&input).expect_err("dimensions should be rejected");
+        assert_eq!(error.code, "CONFIG_INVALID");
+        assert_eq!(
+            error.message,
+            format!("智谱 Embedding 维度必须是 {ZHIPU_EMBEDDING_DIMENSIONS}。")
+        );
     }
 }

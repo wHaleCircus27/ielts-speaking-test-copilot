@@ -16,7 +16,7 @@
 
 ### 问题
 
-`src/app/App.tsx` 原 2171 行，曾承担路由、状态管理、业务逻辑、UI 渲染等全部职责。R-501~R-503 已完成后，当前 `App.tsx` 为 196 行，仅保留顶层接线、模态开关和页面组合。
+`src/app/App.tsx` 原 2171 行，曾承担路由、状态管理、业务逻辑、UI 渲染等全部职责。R-501~R-503 完成时缩减为 196 行；R-507 接入 lazy 页面后当前为 213 行，仍只保留顶层接线、模态开关和页面组合。
 
 ### 拆分方案
 
@@ -164,7 +164,7 @@ let db_path = tmp.path().join("test.db");
 - 已新增 `src/hooks/`：`useAppConfig`、`useSessionHistory`、`useGradingWorkflow`、`useMediaWorkflow`、`useTranscriptPlayback`。
 - 已新增 `src/components/workspace/`：`MacMenuBar`、`FinderSidebar`、`WorkspaceInput`、`WorkspaceResult`、`TranscriptPanel`、`WindowStatusBar`，并保留 `Workspace` 作为组合层。
 - 已新增 `src/app/workspaceTypes.ts` 和 `src/app/workspaceUtils.ts`，集中放置工作台专用类型、主题 helper、评分映射和格式化函数。
-- `src/app/App.tsx` 已瘦身至 196 行。
+- `src/app/App.tsx` 在 R-503 完成时瘦身至 196 行；R-507 后当前为 213 行，仍满足 ≤ 500 行目标。
 - 验证通过：`pnpm typecheck`、`pnpm test`（7 个测试文件，27 个测试）、`pnpm build`。
 - P0 完成时 `pnpm build` 曾提示单个 JS chunk 大于 500 kB；该问题已在 R-506/R-507 中处理。
 
@@ -206,6 +206,6 @@ let db_path = tmp.path().join("test.db");
 | R-401 单元测试补齐 | ✅ 已完成 | R-501 拆分后可为新 Hooks 补充独立测试 |
 | R-402 Rust 集成测试 | ✅ 已完成 | R-504/R-505 拆分后测试结构更清晰 |
 | R-403 Mock 建立 | ✅ 已完成 | 无影响 |
-| R-404 手动验收 | ⏳ Deferred | 改进项不阻塞，获取真实 Key 后独立执行 |
+| R-404 手动验收 | 并入 Release Hardening | 三套主题切换由 RH-404 `.app` smoke 承接，真实 Azure 播放同步由 RH-405 承接 |
 | R-405 密钥泄露检查 | ✅ 已完成 | 无影响 |
 | R-406 UI 文档维护 | ✅ 已完成 | R-502 拆分后需同步更新 UI 文档事实源列表 |
