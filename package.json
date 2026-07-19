@@ -1,16 +1,35 @@
 {
   "name": "ielts-speaking-test-copilot",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.0-rc.1",
+  "license": "Apache-2.0",
   "type": "module",
+  "packageManager": "pnpm@11.1.3",
+  "engines": {
+    "node": "24.15.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "typecheck": "tsc --noEmit",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"scripts/**/*.mjs\" \".github/**/*.yml\" package.json pnpm-workspace.yaml eslint.config.js index.html tailwind.config.ts tsconfig.json tsconfig.node.json vite.config.ts src-tauri/tauri.conf.json src-tauri/capabilities/main.json security/audit-exceptions.json docs/release/evidence/0.1.0-rc.1.json",
+    "lint": "eslint .",
     "test": "vitest run",
-    "mvp4:verify": "node scripts/verify-mvp4-readiness.mjs",
+    "fixture:wav:generate": "node scripts/generate-wav-fixture.mjs",
+    "fixture:wav:verify": "node scripts/verify-wav-fixture.mjs",
+    "evidence:verify": "node scripts/verify-release-evidence.mjs",
+    "verify": "node scripts/verify.mjs",
+    "mvp4:verify": "pnpm verify",
+    "security:pnpm": "node scripts/check-pnpm-audit.mjs",
+    "security:check": "node scripts/security-check.mjs",
+    "bundle:app": "node scripts/build-app.mjs",
+    "bundle:verify": "node scripts/verify-app-bundle.mjs",
+    "acceptance:safety-test": "node --test scripts/acceptance-safety.test.mjs",
+    "acceptance:dry-run": "pnpm deepseek:acceptance --dry-run && pnpm azure:speech-preflight --dry-run && pnpm zhipu:embedding-benchmark --dry-run && pnpm azure:generate-speech --dry-run",
+    "deepseek:acceptance": "node scripts/deepseek-acceptance.mjs",
+    "azure:generate-speech": "node scripts/generate-azure-speech-sample.mjs",
     "azure:speech-preflight": "node scripts/azure-speech-preflight.mjs",
     "zhipu:embedding-benchmark": "node scripts/zhipu-embedding-benchmark.mjs"
   },
@@ -22,6 +41,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "@tauri-apps/cli": "^2.11.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
@@ -29,10 +49,16 @@
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.22",
+    "eslint": "10.7.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.3",
+    "globals": "17.7.0",
     "jsdom": "^27.2.0",
     "postcss": "^8.5.6",
+    "prettier": "3.9.5",
     "tailwindcss": "^3.4.18",
     "typescript": "^5.9.3",
+    "typescript-eslint": "8.64.0",
     "vite": "^8.0.13",
     "vitest": "^4.0.15"
   }

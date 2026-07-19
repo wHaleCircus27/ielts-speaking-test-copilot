@@ -64,14 +64,19 @@ async function runCommand({ command, args, cwd = ".", label }) {
   } catch (error) {
     printCommandOutput(error.stdout);
     printCommandOutput(error.stderr);
-    throw new Error(`[${label}] failed with exit code ${error.code ?? "unknown"}.`);
+    throw new Error(
+      `[${label}] failed with exit code ${error.code ?? "unknown"}.`,
+      { cause: error },
+    );
   }
 }
 
 async function verifyLocalWavSample(wavSamplePath) {
   const absoluteWavSamplePath = resolve(wavSamplePath);
   if (!existsSync(absoluteWavSamplePath)) {
-    throw new Error(`Required Azure WAV sample is missing: ${absoluteWavSamplePath}`);
+    throw new Error(
+      `Required Azure WAV sample is missing: ${absoluteWavSamplePath}`,
+    );
   }
 
   const audioInfo = await readAudioInfo(absoluteWavSamplePath);
@@ -81,10 +86,14 @@ async function verifyLocalWavSample(wavSamplePath) {
     (audioInfo.includes("Int16") || audioInfo.includes("16 bit"));
 
   if (!hasRequiredShape) {
-    throw new Error(`Required WAV sample is not Azure-ready: ${absoluteWavSamplePath}`);
+    throw new Error(
+      `Required WAV sample is not Azure-ready: ${absoluteWavSamplePath}`,
+    );
   }
 
-  console.log(`[Azure WAV sample] ${basename(absoluteWavSamplePath)} ready: ${summarizeAudioInfo(audioInfo)}`);
+  console.log(
+    `[Azure WAV sample] ${basename(absoluteWavSamplePath)} ready: ${summarizeAudioInfo(audioInfo)}`,
+  );
 }
 
 async function readAudioInfo(absoluteWavSamplePath) {
@@ -107,7 +116,9 @@ function summarizeAudioInfo(audioInfo) {
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean)
-      .find((line) => line.includes("Data format:") || line.includes("WAVE audio")) ?? "audio info unavailable"
+      .find(
+        (line) => line.includes("Data format:") || line.includes("WAVE audio"),
+      ) ?? "audio info unavailable"
   );
 }
 

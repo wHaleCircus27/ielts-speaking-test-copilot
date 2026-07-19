@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "exceptions": [
+    {
+      "scanner": "pnpm-audit",
+      "advisoryId": "GHSA-w5hq-g745-h8pq",
+      "package": "uuid",
+      "dependencyPath": ".>microsoft-cognitiveservices-speech-sdk>uuid",
+      "dependencyVersion": "microsoft-cognitiveservices-speech-sdk@1.50.0",
+      "severity": "moderate",
+      "owner": "wHaleCircus27",
+      "reason": "Speech SDK 1.50.0 only invokes uuid.v4() without a caller-provided buffer, so the affected v3/v5/v6 buffer path is unreachable.",
+      "usageInvariant": "The SDK Guid helper calls uuid.v4() with no arguments.",
+      "expiresOn": "2026-10-31",
+      "upstreamUrl": "https://github.com/advisories/GHSA-w5hq-g745-h8pq"
+    }
+  ]
+}

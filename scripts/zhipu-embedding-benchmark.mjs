@@ -1,176 +1,172 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import {
+  AcceptanceFailure,
+  buildZhipuEmbeddingsEndpoint,
+  createFailureSummary,
+  discardResponse,
+  emitAcceptanceSummary,
+  readJsonResponse,
+  resolveCredential,
+  validateModelName,
+} from "./lib/acceptance-safety.mjs";
 
-const defaultZhipuEmbeddingDimensions = 1024;
-const defaultSamples = [
-  "Question: Describe a memorable journey.\nAnswer: I travelled to Hangzhou with my classmates and learned to plan better.",
-  "Question: Do you prefer studying alone or with others?\nAnswer: I prefer studying with friends because discussion helps me notice my mistakes.",
-  "Question: Talk about a useful skill.\nAnswer: Cooking is useful because it saves money and helps me take care of my family.",
+const service = "zhipu";
+const requiredEmbeddingDimensions = 1024;
+const syntheticSamples = [
+  "Question: Describe a memorable journey. Answer: I travelled with classmates and learned to plan better.",
+  "Question: Do you prefer studying alone? Answer: I prefer a small group because discussion reveals mistakes.",
+  "Question: Talk about a useful skill. Answer: Cooking saves money and helps me care for my family.",
 ];
-
-const commandLineOptions = parseCommandLineOptions(process.argv.slice(2));
+let commandLineOptions;
 
 try {
-  const zhipuApiKey = resolveZhipuApiKey(commandLineOptions.keyFile);
-  await runZhipuEmbeddingBenchmark({
-    zhipuApiKey,
-    baseUrl: commandLineOptions.baseUrl ?? process.env.ZHIPU_BASE_URL ?? "https://open.bigmodel.cn/api/paas/v4",
-    model: commandLineOptions.model ?? process.env.ZHIPU_EMBEDDING_MODEL ?? "embedding-3",
-    dimensions: Number(
-      commandLineOptions.dimensions ??
-        process.env.ZHIPU_EMBEDDING_DIMENSIONS ??
-        defaultZhipuEmbeddingDimensions,
-    ),
-    samples: commandLineOptions.samples.length > 0 ? commandLineOptions.samples : defaultSamples,
-  });
+  commandLineOptions = parseCommandLineOptions(process.argv.slice(2));
+  if (commandLineOptions.help) {
+    printHelp();
+  } else if (commandLineOptions.dryRun) {
+    const dryRunInput = resolveBenchmarkInput(commandLineOptions);
+    buildZhipuEmbeddingsEndpoint(dryRunInput.baseUrl);
+    await emitAcceptanceSummary({
+      schemaVersion: 1,
+      service,
+      status: "dry-run",
+      inputType: "synthetic-text",
+      model: dryRunInput.model,
+      dimensions: dryRunInput.dimensions,
+      sampleCount: syntheticSamples.length,
+    });
+  } else {
+    const summary = await runZhipuEmbeddingBenchmark(commandLineOptions);
+    await emitAcceptanceSummary(summary, { persist: true });
+  }
 } catch (error) {
-  console.error(sanitizeErrorMessage(error));
+  await emitAcceptanceSummary(createFailureSummary(service, error), {
+    persist: Boolean(commandLineOptions && !commandLineOptions.dryRun),
+  });
   process.exitCode = 1;
 }
 
-async function runZhipuEmbeddingBenchmark({ zhipuApiKey, baseUrl, model, dimensions, samples }) {
-  validateBenchmarkInput({ baseUrl, model, dimensions, samples });
-  console.log("Zhipu embedding benchmark started.");
-  console.log(`Key source: ${describeZhipuKeySource(commandLineOptions.keyFile)}`);
-  console.log(`Endpoint: ${buildZhipuEmbeddingsEndpoint(baseUrl)}`);
-  console.log(`Model: ${model}`);
-  console.log(`Dimensions: ${dimensions}`);
-  console.log(`Samples: ${samples.length}`);
-
+async function runZhipuEmbeddingBenchmark(options) {
+  const benchmarkInput = resolveBenchmarkInput(options);
+  const endpoint = buildZhipuEmbeddingsEndpoint(benchmarkInput.baseUrl);
+  const credential = await resolveCredential({
+    environmentValue: process.env.ZHIPU_API_KEY,
+    filePath: process.env.ZHIPU_KEY_FILE ?? "test-resource/zhipuApiKey.txt",
+    keychainAccount: "zhipu",
+    expectedBinding: endpoint.origin,
+    pattern: /^[A-Za-z0-9._=-]{20,}$/,
+  });
   const statusCounts = new Map();
   const durations = [];
   let successfulResponses = 0;
 
-  for (const sample of samples) {
+  for (const sample of syntheticSamples) {
     const startedAt = performance.now();
     const result = await requestZhipuEmbedding({
-      zhipuApiKey,
-      endpoint: buildZhipuEmbeddingsEndpoint(baseUrl),
-      model,
-      dimensions,
+      credential,
+      endpoint,
+      model: benchmarkInput.model,
+      dimensions: benchmarkInput.dimensions,
       input: sample,
     });
-    const durationMs = performance.now() - startedAt;
-    durations.push(durationMs);
-    statusCounts.set(result.statusCode, (statusCounts.get(result.statusCode) ?? 0) + 1);
-    if (result.ok) {
+    durations.push(performance.now() - startedAt);
+    statusCounts.set(
+      result.httpStatus,
+      (statusCounts.get(result.httpStatus) ?? 0) + 1,
+    );
+    if (result.validDimensions) {
       successfulResponses += 1;
     }
   }
-
-  const latencySummary = summarizeDurations(durations);
-  console.log(`HTTP status counts: ${formatStatusCounts(statusCounts)}`);
-  console.log(
-    `Latency ms: avg=${latencySummary.avg.toFixed(1)}, p50=${latencySummary.p50.toFixed(1)}, p95=${latencySummary.p95.toFixed(1)}`,
-  );
-  console.log(`Passed: ${successfulResponses === samples.length ? "yes" : "no"}`);
-
-  if (successfulResponses !== samples.length) {
-    throw new Error(`Zhipu embedding benchmark failed: ${successfulResponses}/${samples.length} requests passed.`);
+  if (successfulResponses !== syntheticSamples.length) {
+    throw new AcceptanceFailure("ZHIPU_EMBEDDING_SHAPE_FAILED");
   }
+  const latency = summarizeDurations(durations);
 
-  console.log("Zhipu embedding benchmark passed. No key, Authorization header, or raw response was printed.");
+  return {
+    schemaVersion: 1,
+    service,
+    status: "passed",
+    inputType: "synthetic-text",
+    requestCount: syntheticSamples.length,
+    successCount: successfulResponses,
+    httpStatusCounts: Object.fromEntries(
+      [...statusCounts.entries()].sort(
+        ([leftStatus], [rightStatus]) => leftStatus - rightStatus,
+      ),
+    ),
+    latencyMs: latency,
+    dimensions: benchmarkInput.dimensions,
+    model: benchmarkInput.model,
+  };
 }
 
-async function requestZhipuEmbedding({ zhipuApiKey, endpoint, model, dimensions, input }) {
+async function requestZhipuEmbedding({
+  credential,
+  endpoint,
+  model,
+  dimensions,
+  input,
+}) {
   let response;
   try {
     response = await fetch(endpoint, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${zhipuApiKey}`,
+        Authorization: `Bearer ${credential}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model,
-        input,
-        dimensions,
-      }),
+      body: JSON.stringify({ model, input, dimensions }),
+      redirect: "error",
+      signal: AbortSignal.timeout(60_000),
     });
-  } catch (error) {
-    throw new Error(`Zhipu embedding request failed before response: ${sanitizeErrorMessage(error)}`);
+  } catch {
+    throw new AcceptanceFailure("ZHIPU_NETWORK_FAILED");
   }
-
   if (!response.ok) {
-    await response.arrayBuffer();
-    return {
-      ok: false,
-      statusCode: response.status,
-    };
+    await discardResponse(response);
+    throw new AcceptanceFailure("ZHIPU_HTTP_FAILED", response.status);
   }
-
-  const responseJson = await response.json();
-  const embeddingLength = responseJson?.data?.[0]?.embedding?.length;
+  const responseJson = await readJsonResponse(response);
   return {
-    ok: embeddingLength === dimensions,
-    statusCode: response.status,
+    httpStatus: response.status,
+    validDimensions: responseJson?.data?.[0]?.embedding?.length === dimensions,
   };
 }
 
-function validateBenchmarkInput({ baseUrl, model, dimensions, samples }) {
-  if (!baseUrl.trim()) {
-    throw new Error("Zhipu Base URL is required.");
+function resolveBenchmarkInput(options) {
+  const baseUrl =
+    process.env.ZHIPU_BASE_URL ?? "https://open.bigmodel.cn/api/paas/v4";
+  const model = validateModelName(
+    options.model ?? process.env.ZHIPU_EMBEDDING_MODEL ?? "embedding-3",
+    "ZHIPU_MODEL_INVALID",
+  );
+  const dimensions = Number(
+    options.dimensions ??
+      process.env.ZHIPU_EMBEDDING_DIMENSIONS ??
+      requiredEmbeddingDimensions,
+  );
+  if (dimensions !== requiredEmbeddingDimensions) {
+    throw new AcceptanceFailure("ZHIPU_DIMENSIONS_INVALID");
   }
-  if (!model.trim()) {
-    throw new Error("Zhipu embedding model is required.");
-  }
-  if (!Number.isInteger(dimensions) || dimensions <= 0) {
-    throw new Error("Zhipu embedding dimensions must be a positive integer.");
-  }
-  if (!samples.length || samples.some((sample) => !sample.trim())) {
-    throw new Error("At least one non-empty benchmark sample is required.");
-  }
-}
-
-function resolveZhipuApiKey(explicitKeyFile) {
-  const keyFromEnvironment = parseZhipuKeyText(process.env.ZHIPU_API_KEY ?? "");
-  if (keyFromEnvironment) {
-    return keyFromEnvironment;
-  }
-
-  const keyFilePath = resolve(explicitKeyFile ?? "test-resource/zhipuApiKey.txt");
-  if (!existsSync(keyFilePath)) {
-    throw new Error("Zhipu API key is required. Set ZHIPU_API_KEY or create test-resource/zhipuApiKey.txt locally.");
-  }
-
-  const keyFromFile = parseZhipuKeyText(readFileSync(keyFilePath, "utf8"));
-  if (!keyFromFile) {
-    throw new Error(`Zhipu API key file is empty: ${keyFilePath}`);
-  }
-
-  return keyFromFile;
-}
-
-function parseZhipuKeyText(rawKeyText) {
-  return rawKeyText
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => line.replace(/^[A-Za-z0-9_ -]+\s*[:=]\s*/, "").trim())
-    .find((line) => /^[A-Za-z0-9._=-]{20,}$/.test(line));
-}
-
-function buildZhipuEmbeddingsEndpoint(baseUrl) {
-  const trimmedBaseUrl = baseUrl.trim().replace(/\/+$/, "");
-  return trimmedBaseUrl.endsWith("/embeddings") ? trimmedBaseUrl : `${trimmedBaseUrl}/embeddings`;
+  return { baseUrl, model, dimensions };
 }
 
 function summarizeDurations(durations) {
   const sortedDurations = [...durations].sort((left, right) => left - right);
-  const totalDuration = sortedDurations.reduce((sum, duration) => sum + duration, 0);
+  const totalDuration = sortedDurations.reduce(
+    (sum, duration) => sum + duration,
+    0,
+  );
   return {
-    avg: totalDuration / sortedDurations.length,
-    p50: percentile(sortedDurations, 0.5),
-    p95: percentile(sortedDurations, 0.95),
+    average: roundDuration(totalDuration / sortedDurations.length),
+    p50: roundDuration(percentile(sortedDurations, 0.5)),
+    p95: roundDuration(percentile(sortedDurations, 0.95)),
   };
 }
 
 function percentile(sortedDurations, percentileValue) {
-  if (sortedDurations.length === 1) {
-    return sortedDurations[0];
-  }
   const rawIndex = (sortedDurations.length - 1) * percentileValue;
   const lowerIndex = Math.floor(rawIndex);
   const upperIndex = Math.ceil(rawIndex);
@@ -178,73 +174,56 @@ function percentile(sortedDurations, percentileValue) {
     return sortedDurations[lowerIndex];
   }
   const weight = rawIndex - lowerIndex;
-  return sortedDurations[lowerIndex] * (1 - weight) + sortedDurations[upperIndex] * weight;
+  return (
+    sortedDurations[lowerIndex] * (1 - weight) +
+    sortedDurations[upperIndex] * weight
+  );
 }
 
-function formatStatusCounts(statusCounts) {
-  return [...statusCounts.entries()]
-    .sort(([leftStatus], [rightStatus]) => leftStatus - rightStatus)
-    .map(([status, count]) => `${status}=${count}`)
-    .join(", ");
-}
-
-function sanitizeErrorMessage(error) {
-  const rawMessage = error instanceof Error ? error.message : String(error);
-  return rawMessage
-    .replace(/Bearer\s+[A-Za-z0-9._=-]+/g, "Bearer [redacted]")
-    .replace(/[A-Za-z0-9._=-]{30,}/g, "[redacted]");
-}
-
-function describeZhipuKeySource(explicitKeyFile) {
-  if (process.env.ZHIPU_API_KEY?.trim()) {
-    return "ZHIPU_API_KEY environment variable";
-  }
-
-  return explicitKeyFile ? "explicit local key file" : "default local key file";
+function roundDuration(duration) {
+  return Number(duration.toFixed(1));
 }
 
 function parseCommandLineOptions(args) {
   const options = {
-    baseUrl: undefined,
     dimensions: undefined,
-    keyFile: undefined,
+    dryRun: false,
+    help: false,
     model: undefined,
-    samples: [],
   };
-
   for (let index = 0; index < args.length; index += 1) {
-    const currentArgument = args[index];
-    const nextArgument = args[index + 1];
-
-    if (currentArgument === "--") {
-      continue;
-    } else if (currentArgument === "--base-url") {
-      options.baseUrl = readRequiredArgumentValue(currentArgument, nextArgument);
-      index += 1;
-    } else if (currentArgument === "--dimensions") {
-      options.dimensions = readRequiredArgumentValue(currentArgument, nextArgument);
-      index += 1;
-    } else if (currentArgument === "--key-file") {
-      options.keyFile = readRequiredArgumentValue(currentArgument, nextArgument);
-      index += 1;
-    } else if (currentArgument === "--model") {
-      options.model = readRequiredArgumentValue(currentArgument, nextArgument);
-      index += 1;
-    } else if (currentArgument === "--sample") {
-      options.samples.push(readRequiredArgumentValue(currentArgument, nextArgument));
+    const argument = args[index];
+    if (argument === "--dry-run") {
+      options.dryRun = true;
+    } else if (argument === "--help" || argument === "-h") {
+      options.help = true;
+    } else if (["--dimensions", "--model"].includes(argument)) {
+      const value = readRequiredArgumentValue(args[index + 1]);
+      if (argument === "--dimensions") options.dimensions = value;
+      if (argument === "--model") options.model = value;
       index += 1;
     } else {
-      throw new Error(`Unknown argument: ${currentArgument}`);
+      throw new AcceptanceFailure("CLI_ARGUMENT_INVALID");
     }
   }
-
   return options;
 }
 
-function readRequiredArgumentValue(argumentName, argumentValue) {
-  if (!argumentValue || argumentValue.startsWith("--")) {
-    throw new Error(`${argumentName} requires a value.`);
+function readRequiredArgumentValue(value) {
+  if (!value || value.startsWith("--")) {
+    throw new AcceptanceFailure("CLI_ARGUMENT_VALUE_MISSING");
   }
+  return value;
+}
 
-  return argumentValue;
+function printHelp() {
+  console.log(`Usage: pnpm zhipu:embedding-benchmark [options]
+
+Options:
+  --model <model>        Embedding model, default embedding-3
+  --dimensions <number>  Must be 1024 for RC acceptance
+  --dry-run              Validate configuration without credentials or network
+  --help                 Show this help
+
+Sensitive file overrides are accepted only through ZHIPU_KEY_FILE; endpoint overrides use ZHIPU_BASE_URL.`);
 }

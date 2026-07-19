@@ -1,0 +1,9 @@
+dist/
+node_modules/
+src-tauri/gen/
+src-tauri/target/
+test-resource/
+.codegraph/
+pnpm-lock.yaml
+src-tauri/Cargo.lock
+LICENSE

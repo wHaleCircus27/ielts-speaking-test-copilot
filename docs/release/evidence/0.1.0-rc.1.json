@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "releaseVersion": "0.1.0-rc.1",
+  "commit": "pending",
+  "environment": {
+    "osVersion": "macOS 26.5.2",
+    "architecture": "arm64"
+  },
+  "fixture": {
+    "id": "azure-ready-1s",
+    "sha256": "130d9d6e6ef253d32c393d163923c30d60385eb8d317451cb93ab6206bf230b9",
+    "inputType": "synthetic-audio",
+    "format": "wav-pcm-16khz-16bit-mono",
+    "durationMs": 1000
+  },
+  "repositoryGates": {
+    "freshCloneVerify": "pending",
+    "dependencyAudit": "pending",
+    "fullHistoryScan": "pending",
+    "branchProtection": "pending"
+  },
+  "bundle": {
+    "build": "pending",
+    "architecture": "pending",
+    "signature": "pending",
+    "resources": "pending"
+  },
+  "services": {
+    "deepseek": {
+      "status": "passed",
+      "inputType": "synthetic-text",
+      "latencyMs": 4757.5,
+      "httpStatus": 200,
+      "modelAvailable": true,
+      "gradingShape": {
+        "overallBandValid": true,
+        "subScoreCount": 4,
+        "correctionCount": 2,
+        "hasFeedback": true,
+        "hasModelAnswer": true
+      }
+    },
+    "azure": {
+      "status": "failed",
+      "inputType": "synthetic-audio",
+      "failureCode": "CREDENTIAL_MISSING"
+    },
+    "zhipu": {
+      "status": "passed",
+      "inputType": "synthetic-text",
+      "requestCount": 3,
+      "successCount": 3,
+      "httpStatusCounts": { "200": 3 },
+      "latencyMs": { "average": 271.3, "p50": 159.6, "p95": 491.7 },
+      "dimensions": 1024
+    }
+  },
+  "appSmoke": {
+    "cleanAccount": "pending",
+    "upgradeAccount": "pending",
+    "width960": "pending",
+    "width1200": "pending"
+  },
+  "rollback": { "status": "pending" },
+  "rhTasks": { "status": "pending", "completed": 0, "total": 21 },
+  "decisionReview": { "status": "pending" },
+  "decision": "No-Go"
+}

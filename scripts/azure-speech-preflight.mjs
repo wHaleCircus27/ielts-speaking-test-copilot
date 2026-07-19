@@ -1,221 +1,184 @@
 #!/usr/bin/env node
 
 import { execFile } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { basename, resolve } from "node:path";
 import { promisify } from "node:util";
+import {
+  AcceptanceFailure,
+  buildAzureTokenEndpoint,
+  createFailureSummary,
+  discardResponse,
+  emitAcceptanceSummary,
+  inspectPcmWav,
+  normalizeAzureRegion,
+  resolveCredential,
+  responseHasBoundedBody,
+  validateAzureLanguage,
+} from "./lib/acceptance-safety.mjs";
 
+const service = "azure";
+const minimumAcceptanceDurationMs = 35_000;
+const defaultWavPath = "test-resource/generated/azure-acceptance-35s.wav";
 const execFileAsync = promisify(execFile);
-
-const defaultWavPaths = [
-  "test-resource/speakTest-afconvert-16k-mono.wav",
-  "test-resource/speakTest-nvidia-asr.wav",
-];
-
-const commandLineOptions = parseCommandLineOptions(process.argv.slice(2));
+let commandLineOptions;
 
 try {
-  const azureSpeechRegion = resolveRequiredTextOption(
-    commandLineOptions.region ?? process.env.AZURE_SPEECH_REGION,
-    "Azure Speech region is required. Pass --region <region> or set AZURE_SPEECH_REGION.",
-  );
-  const azureSpeechLanguage = (commandLineOptions.language ?? process.env.AZURE_SPEECH_LANGUAGE ?? "en-US").trim();
-  const azureSpeechKey = resolveAzureSpeechKey(commandLineOptions.keyFile);
-  const wavPaths = commandLineOptions.wavPaths.length > 0 ? commandLineOptions.wavPaths : defaultWavPaths;
-
-  await runAzureSpeechPreflight({
-    azureSpeechKey,
-    azureSpeechRegion,
-    azureSpeechLanguage,
-    wavPaths,
-  });
+  commandLineOptions = parseCommandLineOptions(process.argv.slice(2));
+  if (commandLineOptions.help) {
+    printHelp();
+  } else if (commandLineOptions.dryRun) {
+    buildAzureTokenEndpoint(commandLineOptions.region ?? "eastasia");
+    validateAzureLanguage(commandLineOptions.language ?? "en-US");
+    await emitAcceptanceSummary({
+      schemaVersion: 1,
+      service,
+      status: "dry-run",
+      inputType: "synthetic-audio",
+      regionValidated: true,
+      languageValidated: true,
+      sampleCount: 1,
+    });
+  } else {
+    const summary = await runAzureSpeechPreflight(commandLineOptions);
+    await emitAcceptanceSummary(summary, { persist: true });
+  }
 } catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
+  await emitAcceptanceSummary(createFailureSummary(service, error), {
+    persist: Boolean(commandLineOptions && !commandLineOptions.dryRun),
+  });
   process.exitCode = 1;
 }
 
-async function runAzureSpeechPreflight({ azureSpeechKey, azureSpeechRegion, azureSpeechLanguage, wavPaths }) {
-  console.log("Azure Speech preflight started.");
-  console.log(`Region: ${azureSpeechRegion}`);
-  console.log(`Language: ${azureSpeechLanguage}`);
-  console.log(`Key source: ${describeAzureKeySource()}`);
-
-  const tokenStatus = await requestAzureSpeechToken({
-    azureSpeechKey,
-    azureSpeechRegion,
+async function runAzureSpeechPreflight(options) {
+  const startedAt = performance.now();
+  const region = options.region ?? process.env.AZURE_SPEECH_REGION;
+  validateAzureLanguage(
+    options.language ?? process.env.AZURE_SPEECH_LANGUAGE ?? "en-US",
+  );
+  const normalizedRegion = normalizeAzureRegion(region);
+  const tokenEndpoint = buildAzureTokenEndpoint(normalizedRegion);
+  const credential = await resolveCredential({
+    environmentValue: process.env.AZURE_SPEECH_KEY,
+    filePath:
+      process.env.AZURE_SPEECH_KEY_FILE ?? "test-resource/azureSpeechKey.txt",
+    keychainAccount: "azure",
+    expectedBinding: normalizedRegion,
+    pattern: /^[A-Za-z0-9+/=_-]{30,}$/,
   });
-  console.log(`Token request: HTTP ${tokenStatus.statusCode}, non-empty token: ${tokenStatus.hasToken ? "yes" : "no"}`);
+  const tokenStatus = await requestAzureSpeechToken({
+    credential,
+    tokenEndpoint,
+  });
+  const wavMetadata = await verifyWavFile(
+    process.env.AZURE_SPEECH_WAV ?? defaultWavPath,
+  );
 
-  if (!tokenStatus.ok) {
-    throw new Error(`Azure Speech token request failed with HTTP ${tokenStatus.statusCode}.`);
-  }
-
-  for (const wavPath of wavPaths) {
-    await verifyWavFile(wavPath);
-  }
-
-  console.log("Azure Speech preflight passed. No key or token was printed.");
+  return {
+    schemaVersion: 1,
+    service,
+    status: "passed",
+    inputType: "synthetic-audio",
+    latencyMs: Number((performance.now() - startedAt).toFixed(1)),
+    httpStatus: tokenStatus,
+    credentialExchange: "passed",
+    format: "wav-pcm",
+    durationMs: wavMetadata.durationMs,
+    minimumDurationMs: minimumAcceptanceDurationMs,
+    sampleRateHz: 16000,
+    channels: 1,
+    bitDepth: 16,
+    sampleCount: 1,
+  };
 }
 
-async function requestAzureSpeechToken({ azureSpeechKey, azureSpeechRegion }) {
-  const tokenEndpoint = `https://${azureSpeechRegion}.api.cognitive.microsoft.com/sts/v1.0/issueToken`;
+async function requestAzureSpeechToken({ credential, tokenEndpoint }) {
   let response;
   try {
     response = await fetch(tokenEndpoint, {
       method: "POST",
       headers: {
-        "Ocp-Apim-Subscription-Key": azureSpeechKey,
+        "Ocp-Apim-Subscription-Key": credential,
       },
+      redirect: "error",
+      signal: AbortSignal.timeout(30_000),
     });
-  } catch (error) {
-    throw new Error(`Azure Speech token request failed before response: ${sanitizeErrorMessage(error)}`);
+  } catch {
+    throw new AcceptanceFailure("AZURE_TOKEN_NETWORK_FAILED");
   }
-
-  const tokenText = await response.text();
-  const hasUsableToken = response.ok && tokenText.trim().length > 0;
-
-  return {
-    ok: hasUsableToken,
-    statusCode: response.status,
-    hasToken: hasUsableToken,
-  };
+  if (!response.ok) {
+    await discardResponse(response);
+    throw new AcceptanceFailure("AZURE_TOKEN_HTTP_FAILED", response.status);
+  }
+  if (!(await responseHasBoundedBody(response))) {
+    throw new AcceptanceFailure("AZURE_TOKEN_EMPTY", response.status);
+  }
+  return response.status;
 }
 
 async function verifyWavFile(wavPath) {
-  const absoluteWavPath = resolve(wavPath);
-  if (!existsSync(absoluteWavPath)) {
-    throw new Error(`WAV sample not found: ${absoluteWavPath}`);
+  const metadata = await inspectPcmWav(wavPath);
+  if (
+    metadata.sampleRateHz !== 16000 ||
+    metadata.channels !== 1 ||
+    metadata.bitDepth !== 16
+  ) {
+    throw new AcceptanceFailure("AZURE_WAV_FORMAT_INVALID");
+  }
+  if (metadata.durationMs < minimumAcceptanceDurationMs) {
+    throw new AcceptanceFailure("AZURE_WAV_TOO_SHORT");
   }
 
-  const audioInfo = await readAudioInfo(absoluteWavPath);
-  const hasRequiredShape =
-    audioInfo.includes("1 ch") &&
-    audioInfo.includes("16000 Hz") &&
-    (audioInfo.includes("Int16") || audioInfo.includes("16 bit"));
-
-  if (!hasRequiredShape) {
-    throw new Error(
-      `WAV sample is not Azure-ready 16kHz mono 16-bit PCM: ${absoluteWavPath}\n${summarizeAudioInfo(audioInfo)}`,
-    );
-  }
-
-  console.log(`WAV sample ready: ${basename(absoluteWavPath)} (${summarizeAudioInfo(audioInfo)})`);
-}
-
-async function readAudioInfo(absoluteWavPath) {
   try {
-    const { stdout } = await execFileAsync("afinfo", [absoluteWavPath], {
-      maxBuffer: 1024 * 1024,
+    await execFileAsync("/usr/bin/afinfo", ["-x", "-r", wavPath], {
+      timeout: 30_000,
+      maxBuffer: 32 * 1024,
+      encoding: "buffer",
     });
-    return stdout;
   } catch {
-    const { stdout } = await execFileAsync("file", [absoluteWavPath], {
-      maxBuffer: 1024 * 1024,
-    });
-    return stdout;
+    throw new AcceptanceFailure("AZURE_AFINFO_FAILED");
   }
-}
-
-function summarizeAudioInfo(audioInfo) {
-  const compactAudioInfo = audioInfo
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .find((line) => line.includes("Data format:") || line.includes("WAVE audio"));
-
-  return compactAudioInfo ?? "audio info unavailable";
-}
-
-function resolveAzureSpeechKey(explicitKeyFile) {
-  const keyFromEnvironment = parseAzureSpeechKeyText(process.env.AZURE_SPEECH_KEY ?? "");
-  if (keyFromEnvironment) {
-    return keyFromEnvironment;
-  }
-
-  const keyFilePath = resolve(explicitKeyFile ?? "test-resource/azureSpeechKey.txt");
-  if (!existsSync(keyFilePath)) {
-    throw new Error(
-      "Azure Speech key is required. Set AZURE_SPEECH_KEY or create test-resource/azureSpeechKey.txt locally.",
-    );
-  }
-
-  const keyFromFile = parseAzureSpeechKeyText(readFileSync(keyFilePath, "utf8"));
-  if (!keyFromFile) {
-    throw new Error(`Azure Speech key file is empty: ${keyFilePath}`);
-  }
-
-  return keyFromFile;
-}
-
-function parseAzureSpeechKeyText(rawKeyText) {
-  return rawKeyText
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => line.replace(/^[A-Za-z0-9_ -]+\s*[:=]\s*/, "").trim())
-    .find((line) => /^[A-Za-z0-9+/=_-]{30,}$/.test(line));
-}
-
-function sanitizeErrorMessage(error) {
-  const rawMessage = error instanceof Error ? error.message : String(error);
-  return rawMessage.replace(/[A-Za-z0-9+/=_-]{30,}/g, "[redacted]");
-}
-
-function describeAzureKeySource() {
-  if (process.env.AZURE_SPEECH_KEY?.trim()) {
-    return "AZURE_SPEECH_KEY environment variable";
-  }
-
-  return "local key file";
-}
-
-function resolveRequiredTextOption(value, missingMessage) {
-  const normalizedValue = value?.trim();
-  if (!normalizedValue) {
-    throw new Error(missingMessage);
-  }
-
-  return normalizedValue;
+  return metadata;
 }
 
 function parseCommandLineOptions(args) {
   const options = {
-    keyFile: undefined,
+    dryRun: false,
+    help: false,
     language: undefined,
     region: undefined,
-    wavPaths: [],
   };
-
   for (let index = 0; index < args.length; index += 1) {
-    const currentArgument = args[index];
-    const nextArgument = args[index + 1];
-
-    if (currentArgument === "--") {
-      continue;
-    } else if (currentArgument === "--key-file") {
-      options.keyFile = readRequiredArgumentValue(currentArgument, nextArgument);
-      index += 1;
-    } else if (currentArgument === "--language") {
-      options.language = readRequiredArgumentValue(currentArgument, nextArgument);
-      index += 1;
-    } else if (currentArgument === "--region") {
-      options.region = readRequiredArgumentValue(currentArgument, nextArgument);
-      index += 1;
-    } else if (currentArgument === "--wav") {
-      options.wavPaths.push(readRequiredArgumentValue(currentArgument, nextArgument));
+    const argument = args[index];
+    if (argument === "--dry-run") {
+      options.dryRun = true;
+    } else if (argument === "--help" || argument === "-h") {
+      options.help = true;
+    } else if (["--language", "--region"].includes(argument)) {
+      const value = readRequiredArgumentValue(args[index + 1]);
+      if (argument === "--language") options.language = value;
+      if (argument === "--region") options.region = value;
       index += 1;
     } else {
-      throw new Error(`Unknown argument: ${currentArgument}`);
+      throw new AcceptanceFailure("CLI_ARGUMENT_INVALID");
     }
   }
-
   return options;
 }
 
-function readRequiredArgumentValue(argumentName, argumentValue) {
-  if (!argumentValue || argumentValue.startsWith("--")) {
-    throw new Error(`${argumentName} requires a value.`);
+function readRequiredArgumentValue(value) {
+  if (!value || value.startsWith("--")) {
+    throw new AcceptanceFailure("CLI_ARGUMENT_VALUE_MISSING");
   }
+  return value;
+}
 
-  return argumentValue;
+function printHelp() {
+  console.log(`Usage: pnpm azure:speech-preflight [options]
+
+Options:
+  --region <region>      Azure Speech region (or AZURE_SPEECH_REGION)
+  --language <locale>    Recognition locale, default en-US
+  --dry-run              Validate arguments without credentials, files, or network
+  --help                 Show this help
+
+Sensitive file overrides are accepted only through AZURE_SPEECH_KEY_FILE and AZURE_SPEECH_WAV.`);
 }
