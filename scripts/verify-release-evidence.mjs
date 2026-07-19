@@ -107,6 +107,19 @@ function validateReleaseGateState(document) {
     }
   }
 
+  const archiveSha256 = document.bundle?.archiveSha256;
+  if (
+    archiveSha256 !== undefined &&
+    (typeof archiveSha256 !== "string" || !/^[0-9a-f]{64}$/.test(archiveSha256))
+  ) {
+    throw new Error("Bundle archive SHA-256 must be 64 lowercase hex digits.");
+  }
+  if (document.bundle?.resources === "passed" && archiveSha256 === undefined) {
+    throw new Error(
+      "Passed bundle resources require a verified archive SHA-256.",
+    );
+  }
+
   const incompleteReleaseGates = gateStatuses
     .filter(([, gateStatus]) => gateStatus !== "passed")
     .map(([gateName]) => gateName);
