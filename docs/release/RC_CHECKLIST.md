@@ -14,8 +14,8 @@ Unchecked items are release blockers. This checklist must be completed with evid
 - [x] `.app` executable is arm64 and minimum macOS version is 15.0.
 - [x] Version and bundle identifier match release manifests.
 - [x] Ad-hoc signature passes `codesign --verify --deep --strict`.
-- [ ] LICENSE, NOTICE, THIRD_PARTY_NOTICES, and application icons are present in the bundle.
-- [ ] Bundle ZIP SHA-256 is recorded in sanitized evidence.
+- [x] LICENSE, NOTICE, THIRD_PARTY_NOTICES, and application icons are present in the bundle.
+- [x] Bundle ZIP SHA-256 is recorded in sanitized evidence.
 
 ## Clean Account Smoke
 

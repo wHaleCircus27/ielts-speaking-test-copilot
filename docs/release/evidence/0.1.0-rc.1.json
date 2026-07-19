@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "releaseVersion": "0.1.0-rc.1",
-  "commit": "a58569399bbf88b1bb8c08f65c3b53034170aae1",
+  "commit": "b035c1b53f892e760db5bf1e6743df16581dc01c",
   "environment": {
     "osVersion": "macOS 26.5.2",
     "architecture": "arm64"
@@ -23,7 +23,8 @@
     "build": "passed",
     "architecture": "passed",
     "signature": "passed",
-    "resources": "failed"
+    "resources": "passed",
+    "archiveSha256": "d93548414e3d87d7ec2de7939f9dd4bc4d193efb6290cb949c39d3ed5139c1ca"
   },
   "services": {
     "deepseek": {
