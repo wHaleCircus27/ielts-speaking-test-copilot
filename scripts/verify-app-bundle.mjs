@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -53,7 +54,26 @@ const bundleDirectory = resolve(
   repositoryRoot,
   "src-tauri/target/aarch64-apple-darwin/release/bundle/macos",
 );
-const bundleEntries = await readdir(bundleDirectory, { withFileTypes: true });
+const archivePath = join(
+  bundleDirectory,
+  `ielts-speaking-test-copilot-${packageManifest.version}-arm64.zip`,
+);
+const archiveSha256 = createHash("sha256")
+  .update(await readFile(archivePath))
+  .digest("hex");
+assertEqual(
+  await readFile(`${archivePath}.sha256`, "utf8"),
+  `${archiveSha256}  ${basename(archivePath)}\n`,
+  "archive checksum sidecar",
+);
+
+const verificationDirectory = await mkdtemp(
+  join(tmpdir(), "ielts-copilot-bundle-verification-"),
+);
+run("/usr/bin/ditto", ["-x", "-k", archivePath, verificationDirectory]);
+const bundleEntries = await readdir(verificationDirectory, {
+  withFileTypes: true,
+});
 const applicationEntries = bundleEntries.filter(
   (entry) => entry.isDirectory() && entry.name.endsWith(".app"),
 );
@@ -63,7 +83,7 @@ if (applicationEntries.length !== 1) {
   );
 }
 
-const applicationPath = join(bundleDirectory, applicationEntries[0].name);
+const applicationPath = join(verificationDirectory, applicationEntries[0].name);
 const contentsPath = join(applicationPath, "Contents");
 const infoPlistPath = join(contentsPath, "Info.plist");
 const resourcesPath = join(contentsPath, "Resources");
@@ -95,8 +115,6 @@ assertEqual(
   "arm64",
   "executable architecture",
 );
-// FileProvider can add host-only metadata after the build process exits.
-run("/usr/bin/xattr", ["-cr", applicationPath]);
 run("/usr/bin/codesign", ["--verify", "--deep", "--strict", applicationPath]);
 const signatureDetails = runWithStandardError("/usr/bin/codesign", [
   "-dv",
@@ -128,35 +146,6 @@ if (!bundledResourceFiles.some((filePath) => filePath.endsWith(".icns"))) {
   throw new Error("App bundle is missing an ICNS application icon.");
 }
 
-const archivePath = join(
-  bundleDirectory,
-  `ielts-speaking-test-copilot-${packageManifest.version}-arm64.zip`,
-);
-await unlink(archivePath).catch((error) => {
-  if (error.code !== "ENOENT") {
-    throw error;
-  }
-});
-run("/usr/bin/xattr", ["-cr", applicationPath]);
-run("/usr/bin/ditto", [
-  "-c",
-  "-k",
-  "--norsrc",
-  "--noextattr",
-  "--noqtn",
-  "--noacl",
-  "--keepParent",
-  applicationPath,
-  archivePath,
-]);
-const archiveSha256 = createHash("sha256")
-  .update(await readFile(archivePath))
-  .digest("hex");
-await writeFile(
-  `${archivePath}.sha256`,
-  `${archiveSha256}  ${basename(archivePath)}\n`,
-  "utf8",
-);
 console.log(
   `Verified ${applicationEntries[0].name}; archive SHA-256 ${archiveSha256}.`,
 );
