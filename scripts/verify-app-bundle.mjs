@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtemp, readdir, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -163,11 +163,20 @@ function run(command, argumentsList) {
 }
 
 function runWithStandardError(command, argumentsList) {
-  return execFileSync(command, argumentsList, {
+  const commandResult = spawnSync(command, argumentsList, {
     cwd: repositoryRoot,
     encoding: "utf8",
     stdio: ["ignore", "ignore", "pipe"],
-  }).trim();
+  });
+  if (commandResult.error) {
+    throw commandResult.error;
+  }
+  if (commandResult.status !== 0) {
+    throw new Error(
+      `${basename(command)} exited with status ${commandResult.status}.`,
+    );
+  }
+  return commandResult.stderr.trim();
 }
 
 async function listFilesRecursively(directoryPath) {
