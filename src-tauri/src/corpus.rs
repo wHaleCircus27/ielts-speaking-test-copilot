@@ -1,4 +1,9 @@
-use crate::{read_config, AppError, StoredZhipuConfig, ZHIPU_EMBEDDING_DIMENSIONS};
+use crate::endpoints::{
+    cloud_http_client_builder, endpoint_with_terminal_path, normalize_cloud_base_url,
+    read_bounded_response_body,
+};
+use crate::errors::cloud_request_id;
+use crate::{read_cloud_config, AppError, StoredZhipuConfig, ZHIPU_EMBEDDING_DIMENSIONS};
 use rusqlite::{params, Connection, OptionalExtension, Row, Transaction};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -14,6 +19,7 @@ const CORPUS_PROVIDER_ZHIPU: &str = "zhipu";
 const QUERY_EMBEDDING_CACHE_LIMIT: i64 = 200;
 const ZHIPU_EMBEDDING_MAX_RETRIES: usize = 2;
 const ZHIPU_EMBEDDING_INITIAL_BACKOFF_MS: u64 = 300;
+const MAX_ZHIPU_JSON_RESPONSE_BYTES: usize = 2 * 1024 * 1024;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -107,7 +113,7 @@ pub(crate) async fn create_teacher_case(
     app: AppHandle,
     input: TeacherCaseInput,
 ) -> Result<TeacherCase, AppError> {
-    let config = read_config(&app)?;
+    let config = read_cloud_config(&app)?;
     let db_path = teacher_cases_db_path(&app)?;
     let teacher_case = run_corpus_blocking({
         let db_path = db_path.clone();
@@ -135,7 +141,7 @@ pub(crate) async fn update_teacher_case(
     id: String,
     input: TeacherCaseInput,
 ) -> Result<TeacherCase, AppError> {
-    let config = read_config(&app)?;
+    let config = read_cloud_config(&app)?;
     let db_path = teacher_cases_db_path(&app)?;
     let teacher_case = run_corpus_blocking({
         let db_path = db_path.clone();
@@ -156,7 +162,7 @@ pub(crate) async fn rebuild_teacher_case_embedding(
     app: AppHandle,
     id: String,
 ) -> Result<TeacherCase, AppError> {
-    let config = read_config(&app)?;
+    let config = read_cloud_config(&app)?;
     let db_path = teacher_cases_db_path(&app)?;
     rebuild_teacher_case_embedding_at_path(db_path, config.zhipu, id).await
 }
@@ -167,7 +173,7 @@ pub(crate) async fn search_teacher_cases(
     query_text: String,
     top_k: u8,
 ) -> Result<Vec<TeacherCaseMatch>, AppError> {
-    let config = read_config(&app)?;
+    let config = read_cloud_config(&app)?;
     let db_path = teacher_cases_db_path(&app)?;
     search_teacher_cases_at_path(db_path, config.zhipu, query_text, top_k).await
 }
@@ -179,7 +185,7 @@ pub(crate) async fn diagnose_teacher_case_search(
     top_k: u8,
     threshold_override: Option<f64>,
 ) -> Result<TeacherCaseSearchDiagnostics, AppError> {
-    let config = read_config(&app)?;
+    let config = read_cloud_config(&app)?;
     let db_path = teacher_cases_db_path(&app)?;
     diagnose_teacher_case_search_at_path(
         db_path,
@@ -232,7 +238,10 @@ async fn rebuild_teacher_case_embedding_after_save(
     teacher_case: TeacherCase,
 ) -> Result<TeacherCase, AppError> {
     if let Err(error) = validate_zhipu_embedding_config(&config) {
-        if error.code == "ZHIPU_KEY_MISSING" {
+        if matches!(
+            error.code,
+            "ZHIPU_KEY_MISSING" | "ZHIPU_DISABLED" | "CLOUD_DISCLOSURE_REQUIRED"
+        ) {
             return Ok(teacher_case);
         }
         return mark_teacher_case_embedding_failed_after_error(&db_path, &teacher_case.id, &error)
@@ -639,6 +648,25 @@ fn ensure_current_corpus_schema(connection: &Connection) -> Result<(), AppError>
                 )
             })?;
     }
+    connection
+        .execute(
+            r#"UPDATE teacher_cases
+               SET embedding_error = NULL
+               WHERE embedding_error IS NOT NULL
+                 AND (
+                   embedding_error = ''
+                   OR length(embedding_error) > 64
+                   OR embedding_error GLOB '*[^A-Z0-9_]*'
+                 );"#,
+            [],
+        )
+        .map_err(|error| {
+            AppError::with_detail(
+                "CORPUS_SCHEMA_MIGRATION_FAILED",
+                "清理旧教师案例错误信息失败。",
+                error.to_string(),
+            )
+        })?;
     Ok(())
 }
 
@@ -748,7 +776,6 @@ struct LegacyTeacherCaseRow {
     teacher_comment: String,
     scoring_preference: Option<String>,
     embedding_status: EmbeddingStatus,
-    embedding_error: Option<String>,
     created_at: i64,
     updated_at: i64,
 }
@@ -766,13 +793,7 @@ struct LegacyTeacherCaseEmbeddingRow {
 fn migrate_legacy_corpus_database(db_path: &Path) -> Result<(), AppError> {
     let migration_timestamp = timestamp_millis();
     let backup_path = migration_sidecar_path(db_path, "backup", migration_timestamp);
-    fs::copy(db_path, &backup_path).map_err(|error| {
-        AppError::with_detail(
-            "CORPUS_DB_BACKUP_FAILED",
-            "备份旧教师案例库失败。",
-            error.to_string(),
-        )
-    })?;
+    copy_and_sanitize_legacy_backup(db_path, &backup_path, sanitize_legacy_corpus_backup)?;
 
     let temp_path = migration_sidecar_path(db_path, "migrating", migration_timestamp);
     let migration_result = (|| {
@@ -801,16 +822,7 @@ fn migrate_legacy_corpus_database(db_path: &Path) -> Result<(), AppError> {
         })?;
         drop(migrated_connection);
 
-        fs::rename(&temp_path, db_path).map_err(|error| {
-            AppError::with_detail(
-                "CORPUS_MIGRATION_REPLACE_FAILED",
-                format!(
-                    "教师案例库迁移已生成备份 {}，但替换原库失败。",
-                    backup_path.display()
-                ),
-                error.to_string(),
-            )
-        })
+        fs::rename(&temp_path, db_path).map_err(corpus_migration_replace_error)
     })();
 
     if migration_result.is_err() {
@@ -818,6 +830,117 @@ fn migrate_legacy_corpus_database(db_path: &Path) -> Result<(), AppError> {
     }
 
     migration_result
+}
+
+fn copy_and_sanitize_legacy_backup<F>(
+    source_path: &Path,
+    backup_path: &Path,
+    sanitize_backup: F,
+) -> Result<(), AppError>
+where
+    F: FnOnce(&Path) -> Result<(), AppError>,
+{
+    fs::copy(source_path, backup_path).map_err(|error| {
+        AppError::with_detail(
+            "CORPUS_DB_BACKUP_FAILED",
+            "备份旧教师案例库失败。",
+            error.to_string(),
+        )
+    })?;
+
+    if let Err(error) = sanitize_backup(backup_path) {
+        remove_unsanitized_sqlite_backup(backup_path)?;
+        return Err(error);
+    }
+    Ok(())
+}
+
+fn sanitize_legacy_corpus_backup(backup_path: &Path) -> Result<(), AppError> {
+    let connection = Connection::open(backup_path).map_err(|error| {
+        AppError::with_detail(
+            "CORPUS_DB_BACKUP_SANITIZE_FAILED",
+            "旧教师案例库备份脱敏失败，迁移已中止。",
+            error.to_string(),
+        )
+    })?;
+    connection
+        .execute_batch(
+            "PRAGMA journal_mode=DELETE;
+             PRAGMA secure_delete=ON;
+             BEGIN IMMEDIATE;
+             UPDATE teacher_cases SET embedding_error = NULL;
+             COMMIT;
+             VACUUM;",
+        )
+        .map_err(|error| {
+            AppError::with_detail(
+                "CORPUS_DB_BACKUP_SANITIZE_FAILED",
+                "旧教师案例库备份脱敏失败，迁移已中止。",
+                error.to_string(),
+            )
+        })?;
+    let remaining_private_error_count: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM teacher_cases WHERE embedding_error IS NOT NULL;",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| {
+            AppError::with_detail(
+                "CORPUS_DB_BACKUP_SANITIZE_FAILED",
+                "旧教师案例库备份脱敏验证失败，迁移已中止。",
+                error.to_string(),
+            )
+        })?;
+    if remaining_private_error_count != 0 {
+        return Err(AppError::new(
+            "CORPUS_DB_BACKUP_SANITIZE_FAILED",
+            "旧教师案例库备份脱敏验证失败，迁移已中止。",
+        ));
+    }
+    Ok(())
+}
+
+fn remove_unsanitized_sqlite_backup(backup_path: &Path) -> Result<(), AppError> {
+    for path in sqlite_database_paths(backup_path) {
+        if path.exists() && fs::remove_file(&path).is_err() {
+            let truncated = std::fs::OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .open(&path)
+                .and_then(|file| file.sync_all())
+                .is_ok();
+            if !truncated || fs::remove_file(&path).is_err() {
+                return Err(AppError::new(
+                    "CORPUS_DB_BACKUP_CLEANUP_FAILED",
+                    "旧教师案例库备份脱敏失败，且无法清理未完成备份；迁移已阻断。",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn sqlite_database_paths(database_path: &Path) -> [PathBuf; 4] {
+    let sidecar_path = |suffix: &str| {
+        let mut path = database_path.as_os_str().to_os_string();
+        path.push(suffix);
+        PathBuf::from(path)
+    };
+    [
+        database_path.to_path_buf(),
+        sidecar_path("-wal"),
+        sidecar_path("-shm"),
+        sidecar_path("-journal"),
+    ]
+}
+
+fn corpus_migration_replace_error(error: std::io::Error) -> AppError {
+    AppError::with_detail(
+        "CORPUS_MIGRATION_REPLACE_FAILED",
+        "教师案例库迁移已生成本地备份，但替换原库失败。",
+        error.to_string(),
+    )
 }
 
 fn migration_sidecar_path(db_path: &Path, label: &str, timestamp: i64) -> PathBuf {
@@ -831,14 +954,8 @@ fn migration_sidecar_path(db_path: &Path, label: &str, timestamp: i64) -> PathBu
 fn read_legacy_teacher_cases(
     connection: &Connection,
 ) -> Result<Vec<LegacyTeacherCaseRow>, AppError> {
-    let teacher_case_columns = table_columns(connection, "teacher_cases")?;
-    let embedding_error_projection = if column_exists(&teacher_case_columns, "embedding_error") {
-        "embedding_error"
-    } else {
-        "NULL AS embedding_error"
-    };
     let mut statement = connection
-        .prepare(&format!(
+        .prepare(
             r#"
             SELECT
                 id,
@@ -847,13 +964,12 @@ fn read_legacy_teacher_cases(
                 teacher_comment,
                 scoring_preference,
                 embedding_status,
-                {embedding_error_projection},
                 CAST(created_at AS TEXT),
                 CAST(updated_at AS TEXT)
             FROM teacher_cases
             ORDER BY updated_at DESC, created_at DESC;
             "#,
-        ))
+        )
         .map_err(|error| {
             AppError::with_detail(
                 "CORPUS_MIGRATION_READ_FAILED",
@@ -864,8 +980,8 @@ fn read_legacy_teacher_cases(
 
     let teacher_cases = statement
         .query_map([], |row| {
-            let created_at: String = row.get(7)?;
-            let updated_at: String = row.get(8)?;
+            let created_at: String = row.get(6)?;
+            let updated_at: String = row.get(7)?;
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
@@ -873,7 +989,6 @@ fn read_legacy_teacher_cases(
                 row.get::<_, String>(3)?,
                 row.get::<_, Option<String>>(4)?,
                 row.get::<_, String>(5)?,
-                row.get::<_, Option<String>>(6)?,
                 created_at,
                 updated_at,
             ))
@@ -893,7 +1008,6 @@ fn read_legacy_teacher_cases(
                 teacher_comment,
                 scoring_preference,
                 embedding_status,
-                embedding_error,
                 created_at,
                 updated_at,
             ) = row_result.map_err(|error| {
@@ -913,9 +1027,6 @@ fn read_legacy_teacher_cases(
                     .map(|value| value.trim().to_string())
                     .filter(|value| !value.is_empty()),
                 embedding_status: EmbeddingStatus::from_str(&embedding_status),
-                embedding_error: embedding_error
-                    .map(|value| value.trim().to_string())
-                    .filter(|value| !value.is_empty()),
                 created_at: parse_legacy_timestamp_millis(&created_at)?,
                 updated_at: parse_legacy_timestamp_millis(&updated_at)?,
             })
@@ -1083,7 +1194,7 @@ fn insert_legacy_teacher_cases(
                 embedding_error,
                 created_at,
                 updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9);
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?8);
             "#,
         )
         .map_err(|error| {
@@ -1103,7 +1214,6 @@ fn insert_legacy_teacher_cases(
                 teacher_case.teacher_comment,
                 teacher_case.scoring_preference,
                 teacher_case.embedding_status.as_str(),
-                teacher_case.embedding_error,
                 teacher_case.created_at,
                 teacher_case.updated_at
             ])
@@ -1998,7 +2108,7 @@ fn encode_embedding_blob(embedding: &[f64]) -> Result<Vec<u8>, AppError> {
 }
 
 fn decode_embedding_blob(blob: &[u8]) -> Result<Vec<f64>, AppError> {
-    if blob.len() % std::mem::size_of::<f32>() != 0 {
+    if !blob.len().is_multiple_of(std::mem::size_of::<f32>()) {
         return Err(AppError::new(
             "CORPUS_EMBEDDING_PARSE_FAILED",
             "教师案例向量 BLOB 长度非法。",
@@ -2058,17 +2168,11 @@ async fn request_zhipu_embedding(
     input: &str,
 ) -> Result<Vec<f64>, AppError> {
     let validation = validate_zhipu_embedding_config(config)?;
-    let endpoint = zhipu_embeddings_endpoint(&validation.base_url)?;
-    let client = reqwest::Client::builder()
+    let endpoint = zhipu_embeddings_endpoint(validation.base_url.clone())?;
+    let client = cloud_http_client_builder()
         .timeout(Duration::from_secs(45))
         .build()
-        .map_err(|error| {
-            AppError::with_detail(
-                "ZHIPU_CLIENT_FAILED",
-                "智谱 Embedding 客户端初始化失败。",
-                error.to_string(),
-            )
-        })?;
+        .map_err(|_| AppError::new("ZHIPU_CLIENT_FAILED", "智谱 Embedding 客户端初始化失败。"))?;
 
     let mut retry_count = 0;
     loop {
@@ -2104,12 +2208,12 @@ async fn sleep_zhipu_embedding_retry(backoff: Duration) -> Result<(), AppError> 
 
 async fn request_zhipu_embedding_once(
     client: &reqwest::Client,
-    endpoint: &str,
+    endpoint: &url::Url,
     validation: &ValidZhipuEmbeddingConfig<'_>,
     input: &str,
 ) -> Result<Vec<f64>, AppError> {
     let response = client
-        .post(endpoint)
+        .post(endpoint.clone())
         .bearer_auth(validation.api_key)
         .json(&json!({
             "model": validation.model,
@@ -2124,22 +2228,11 @@ async fn request_zhipu_embedding_once(
             } else {
                 "ZHIPU_EMBEDDING_REQUEST_FAILED"
             };
-            AppError::with_detail(
-                code,
-                "智谱 Embedding 请求失败，请检查网络或 Base URL。",
-                error.to_string(),
-            )
+            AppError::new(code, "智谱 Embedding 请求失败，请检查网络或 Base URL。")
         })?;
 
     let status = response.status();
-    let body = response.text().await.map_err(|error| {
-        let code = if error.is_timeout() || error.is_connect() {
-            "ZHIPU_EMBEDDING_RETRYABLE_RESPONSE_READ_FAILED"
-        } else {
-            "ZHIPU_EMBEDDING_RESPONSE_READ_FAILED"
-        };
-        AppError::with_detail(code, "读取智谱 Embedding 响应失败。", error.to_string())
-    })?;
+    let request_id = cloud_request_id(response.headers());
 
     if !status.is_success() {
         let code = if zhipu_http_status_is_retryable(status) {
@@ -2147,20 +2240,38 @@ async fn request_zhipu_embedding_once(
         } else {
             "ZHIPU_EMBEDDING_HTTP_ERROR"
         };
-        return Err(AppError::with_detail(
+        return Err(AppError::with_status(
             code,
             format!("智谱 Embedding 服务返回错误状态：{}。", status.as_u16()),
-            summarize_for_debug(&body),
-        ));
+            status.as_u16(),
+        )
+        .with_request_id(request_id));
     }
 
-    let parsed: ZhipuEmbeddingResponse = serde_json::from_str(&body).map_err(|error| {
-        AppError::with_detail(
-            "ZHIPU_EMBEDDING_RESPONSE_INVALID",
-            "智谱 Embedding 响应格式无法解析。",
-            format!("{}; body={}", error, summarize_for_debug(&body)),
-        )
-    })?;
+    let bounded_body = read_bounded_response_body(
+        response,
+        MAX_ZHIPU_JSON_RESPONSE_BYTES,
+        "ZHIPU_EMBEDDING_RESPONSE_TOO_LARGE",
+        "智谱 Embedding 响应超过大小限制。",
+        |error| {
+            let code = if error.is_timeout() || error.is_connect() {
+                "ZHIPU_EMBEDDING_RETRYABLE_RESPONSE_READ_FAILED"
+            } else {
+                "ZHIPU_EMBEDDING_RESPONSE_READ_FAILED"
+            };
+            AppError::new(code, "读取智谱 Embedding 响应失败。")
+        },
+    )
+    .await?;
+    let request_id = bounded_body.request_id;
+    let parsed: ZhipuEmbeddingResponse =
+        serde_json::from_slice(&bounded_body.bytes).map_err(|_| {
+            AppError::new(
+                "ZHIPU_EMBEDDING_RESPONSE_INVALID",
+                "智谱 Embedding 响应格式无法解析。",
+            )
+            .with_request_id(request_id.clone())
+        })?;
     let embedding = parsed
         .data
         .into_iter()
@@ -2168,11 +2279,8 @@ async fn request_zhipu_embedding_once(
         .map(|item| item.embedding)
         .filter(|embedding| !embedding.is_empty())
         .ok_or_else(|| {
-            AppError::with_detail(
-                "ZHIPU_EMBEDDING_EMPTY",
-                "智谱 Embedding 未返回向量。",
-                summarize_for_debug(&body),
-            )
+            AppError::new("ZHIPU_EMBEDDING_EMPTY", "智谱 Embedding 未返回向量。")
+                .with_request_id(request_id)
         })?;
 
     if embedding.len() != validation.dimensions as usize {
@@ -2205,7 +2313,7 @@ fn should_retry_zhipu_embedding_error(error: &AppError) -> bool {
 #[derive(Debug)]
 struct ValidZhipuEmbeddingConfig<'a> {
     api_key: &'a str,
-    base_url: String,
+    base_url: url::Url,
     model: String,
     dimensions: u16,
 }
@@ -2213,19 +2321,23 @@ struct ValidZhipuEmbeddingConfig<'a> {
 fn validate_zhipu_embedding_config(
     config: &StoredZhipuConfig,
 ) -> Result<ValidZhipuEmbeddingConfig<'_>, AppError> {
+    if !config.enabled {
+        return Err(AppError::new("ZHIPU_DISABLED", "智谱云服务当前未启用。"));
+    }
+    if config.disclosure_accepted_version != Some(1) {
+        return Err(AppError::new(
+            "CLOUD_DISCLOSURE_REQUIRED",
+            "请先接受当前云服务数据流说明。",
+        ));
+    }
     let api_key = config
         .api_key
         .as_ref()
         .map(|value| value.trim())
         .filter(|value| !value.is_empty())
         .ok_or_else(|| AppError::new("ZHIPU_KEY_MISSING", "请先在设置页配置智谱 API Key。"))?;
-    let base_url = config.base_url.trim();
-    if base_url.is_empty() {
-        return Err(AppError::new(
-            "ZHIPU_BASE_URL_EMPTY",
-            "智谱 Base URL 不能为空。",
-        ));
-    }
+    let base_url =
+        normalize_cloud_base_url(&config.base_url, config.allow_insecure_localhost, "智谱")?.url;
     let model = config.model.trim();
     if model.is_empty() {
         return Err(AppError::new(
@@ -2242,26 +2354,14 @@ fn validate_zhipu_embedding_config(
 
     Ok(ValidZhipuEmbeddingConfig {
         api_key,
-        base_url: base_url.to_string(),
+        base_url,
         model: model.to_string(),
         dimensions: config.dimensions,
     })
 }
 
-fn zhipu_embeddings_endpoint(base_url: &str) -> Result<String, AppError> {
-    let trimmed = base_url.trim().trim_end_matches('/');
-    if trimmed.is_empty() {
-        return Err(AppError::new(
-            "ZHIPU_BASE_URL_EMPTY",
-            "智谱 Base URL 不能为空。",
-        ));
-    }
-
-    if trimmed.ends_with("/embeddings") {
-        Ok(trimmed.to_string())
-    } else {
-        Ok(format!("{trimmed}/embeddings"))
-    }
+fn zhipu_embeddings_endpoint(base_url: url::Url) -> Result<url::Url, AppError> {
+    endpoint_with_terminal_path(base_url, None, &["embeddings"], "智谱")
 }
 
 fn cosine_similarity(left: &[f64], right: &[f64]) -> Option<f64> {
@@ -2286,25 +2386,8 @@ fn cosine_similarity(left: &[f64], right: &[f64]) -> Option<f64> {
     Some(dot_product / denominator)
 }
 
-fn summarize_for_debug(value: &str) -> String {
-    value
-        .chars()
-        .take(600)
-        .collect::<String>()
-        .replace(['\n', '\r'], " ")
-}
-
 fn teacher_case_embedding_error_summary(error: &AppError) -> String {
-    let detail = error
-        .detail
-        .as_deref()
-        .map(summarize_for_debug)
-        .filter(|value| !value.trim().is_empty());
-    let summary = match detail {
-        Some(detail) => format!("{}: {}", error.message, detail),
-        None => error.message.clone(),
-    };
-    summary.chars().take(600).collect()
+    error.code.to_string()
 }
 
 fn normalize_teacher_case_input(input: TeacherCaseInput) -> Result<TeacherCaseInput, AppError> {
@@ -2362,6 +2445,9 @@ mod tests {
     use super::*;
     use crate::constants::TEACHER_CASE_SIMILARITY_THRESHOLD;
 
+    const LEGACY_EMBEDDING_ERROR_TEXT: &str =
+        "legacy upstream response at /Users/private/student-answer.txt";
+
     fn temp_db_path(name: &str) -> (tempfile::TempDir, PathBuf) {
         let temp_dir = tempfile::Builder::new()
             .prefix(name)
@@ -2386,10 +2472,14 @@ mod tests {
     fn test_zhipu_config(dimensions: u16) -> StoredZhipuConfig {
         StoredZhipuConfig {
             api_key: Some("zhipu-test".to_string()),
+            enabled: true,
             base_url: "https://open.bigmodel.cn/api/paas/v4".to_string(),
             model: "embedding-3".to_string(),
             dimensions,
+            allow_insecure_localhost: false,
             similarity_threshold: TEACHER_CASE_SIMILARITY_THRESHOLD,
+            credential_status: crate::config::CredentialStatus::Configured,
+            disclosure_accepted_version: Some(1),
         }
     }
 
@@ -2425,6 +2515,7 @@ mod tests {
                     teacher_comment TEXT NOT NULL,
                     scoring_preference TEXT,
                     embedding_status TEXT NOT NULL DEFAULT 'pending',
+                    embedding_error TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -2450,9 +2541,10 @@ mod tests {
                     teacher_comment,
                     scoring_preference,
                     embedding_status,
+                    embedding_error,
                     created_at,
                     updated_at
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8);
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9);
                 "#,
                 params![
                     "legacy-case",
@@ -2461,6 +2553,7 @@ mod tests {
                     "Keep the original meaning but make it more precise.",
                     "prioritize fluency",
                     "ready",
+                    LEGACY_EMBEDDING_ERROR_TEXT,
                     "1700000000000000000",
                     "1700000001000000000"
                 ],
@@ -2573,22 +2666,36 @@ mod tests {
 
     #[test]
     fn validates_zhipu_embedding_config_before_network_request() {
+        let mut disabled_config = test_zhipu_config(ZHIPU_EMBEDDING_DIMENSIONS);
+        disabled_config.enabled = false;
+        let disabled_error = validate_zhipu_embedding_config(&disabled_config)
+            .expect_err("disabled service must fail before network");
+        assert_eq!(disabled_error.code, "ZHIPU_DISABLED");
+
         let missing_key_error = validate_zhipu_embedding_config(&StoredZhipuConfig {
             api_key: None,
+            enabled: true,
             base_url: "https://open.bigmodel.cn/api/paas/v4".to_string(),
             model: "embedding-3".to_string(),
             dimensions: ZHIPU_EMBEDDING_DIMENSIONS,
+            allow_insecure_localhost: false,
             similarity_threshold: TEACHER_CASE_SIMILARITY_THRESHOLD,
+            credential_status: crate::config::CredentialStatus::Missing,
+            disclosure_accepted_version: Some(1),
         })
         .expect_err("missing key should fail before network");
         assert_eq!(missing_key_error.code, "ZHIPU_KEY_MISSING");
 
         let invalid_dimensions_error = validate_zhipu_embedding_config(&StoredZhipuConfig {
             api_key: Some("zhipu-test".to_string()),
+            enabled: true,
             base_url: "https://open.bigmodel.cn/api/paas/v4".to_string(),
             model: "embedding-3".to_string(),
             dimensions: 768,
+            allow_insecure_localhost: false,
             similarity_threshold: TEACHER_CASE_SIMILARITY_THRESHOLD,
+            credential_status: crate::config::CredentialStatus::Configured,
+            disclosure_accepted_version: Some(1),
         })
         .expect_err("invalid dimensions should fail");
         assert_eq!(invalid_dimensions_error.code, "ZHIPU_DIMENSIONS_INVALID");
@@ -2635,14 +2742,21 @@ mod tests {
 
     #[test]
     fn builds_zhipu_embeddings_endpoint() {
+        let api_root =
+            url::Url::parse("https://open.bigmodel.cn/api/paas/v4").expect("valid Zhipu API root");
         assert_eq!(
-            zhipu_embeddings_endpoint("https://open.bigmodel.cn/api/paas/v4").expect("endpoint"),
+            zhipu_embeddings_endpoint(api_root)
+                .expect("endpoint")
+                .as_str(),
             "https://open.bigmodel.cn/api/paas/v4/embeddings"
         );
+
+        let existing_endpoint = url::Url::parse("https://open.bigmodel.cn/api/paas/v4/embeddings")
+            .expect("valid Zhipu embeddings endpoint");
         assert_eq!(
-            zhipu_embeddings_endpoint("https://open.bigmodel.cn/api/paas/v4/embeddings")
-                .expect("endpoint"),
-            "https://open.bigmodel.cn/api/paas/v4/embeddings"
+            zhipu_embeddings_endpoint(existing_endpoint).expect("endpoint"),
+            url::Url::parse("https://open.bigmodel.cn/api/paas/v4/embeddings")
+                .expect("expected endpoint")
         );
     }
 
@@ -2790,7 +2904,7 @@ mod tests {
     }
 
     #[test]
-    fn stores_embedding_failure_reason_on_case() {
+    fn clears_free_text_embedding_failure_reason_on_read() {
         let (_temp_dir, db_path) = temp_db_path("teacher-case-embedding-failed");
         let created = create_teacher_case_at_path(&db_path, valid_input("I like English."))
             .expect("create case");
@@ -2803,9 +2917,25 @@ mod tests {
         .expect("mark failed");
 
         assert_eq!(failed.embedding_status, EmbeddingStatus::Failed);
+        assert_eq!(failed.embedding_error, None);
+    }
+
+    #[test]
+    fn keeps_only_bounded_embedding_error_code() {
+        let (_temp_dir, db_path) = temp_db_path("teacher-case-embedding-error-code");
+        let created = create_teacher_case_at_path(&db_path, valid_input("I like English."))
+            .expect("create case");
+
+        let failed = mark_teacher_case_embedding_failed_at_path(
+            &db_path,
+            &created.id,
+            "ZHIPU_EMBEDDING_HTTP_ERROR",
+        )
+        .expect("mark failed");
+
         assert_eq!(
             failed.embedding_error.as_deref(),
-            Some("智谱 Embedding 服务返回错误状态：429。")
+            Some("ZHIPU_EMBEDDING_HTTP_ERROR")
         );
     }
 
@@ -2818,6 +2948,21 @@ mod tests {
 
         let backups = backup_files_for(&db_path);
         assert_eq!(backups.len(), 1);
+        let backup_connection =
+            Connection::open(&backups[0]).expect("open sanitized legacy backup");
+        let backup_embedding_error = backup_connection
+            .query_row(
+                "SELECT embedding_error FROM teacher_cases WHERE id = ?1;",
+                ["legacy-case"],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .expect("read sanitized backup embedding error");
+        assert_eq!(backup_embedding_error, None);
+        drop(backup_connection);
+        let backup_bytes = fs::read(&backups[0]).expect("read sanitized backup bytes");
+        assert!(!backup_bytes
+            .windows(LEGACY_EMBEDDING_ERROR_TEXT.len())
+            .any(|window| window == LEGACY_EMBEDDING_ERROR_TEXT.as_bytes()));
 
         let connection = open_corpus_connection(&db_path).expect("open migrated db");
         assert_eq!(
@@ -2842,6 +2987,68 @@ mod tests {
                 .expect("list migrated embeddings");
         assert_eq!(embeddings.len(), 1);
         assert_eq!(embeddings[0].embedding, vec![1.0, 0.5, -0.25]);
+    }
+
+    #[test]
+    fn first_list_after_legacy_migration_never_returns_or_persists_old_embedding_error() {
+        let (_temp_dir, db_path) = temp_db_path("teacher-case-first-list-redaction");
+        create_legacy_corpus_database(&db_path, "[1.0,0.5,-0.25]")
+            .expect("create legacy db with private embedding error");
+
+        let cases = list_teacher_cases_at_path(&db_path).expect("first list migrates database");
+
+        assert_eq!(cases.len(), 1);
+        assert_eq!(cases[0].embedding_error, None);
+        let connection = open_corpus_connection(&db_path).expect("open migrated database");
+        let stored_embedding_error = connection
+            .query_row(
+                "SELECT embedding_error FROM teacher_cases WHERE id = ?1;",
+                ["legacy-case"],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .expect("read migrated embedding error");
+        assert_eq!(stored_embedding_error, None);
+    }
+
+    #[test]
+    fn migration_replace_error_never_serializes_backup_path() {
+        let private_backup_path = "/Users/private/teacher-cases.sqlite3.backup-123";
+        let error = corpus_migration_replace_error(std::io::Error::other(format!(
+            "failed to replace database after writing {private_backup_path}"
+        )));
+        let serialized = serde_json::to_string(&error).expect("serialize migration error");
+
+        assert_eq!(
+            error.message,
+            "教师案例库迁移已生成本地备份，但替换原库失败。"
+        );
+        assert!(!serialized.contains(private_backup_path));
+        assert!(!serialized.contains("teacher-cases.sqlite3"));
+    }
+
+    #[test]
+    fn backup_sanitization_failure_removes_copy_and_preserves_original_database() {
+        let (_temp_dir, db_path) = temp_db_path("teacher-case-backup-sanitize-failure");
+        create_legacy_corpus_database(&db_path, "[1.0,0.5,-0.25]").expect("create legacy database");
+        let original_bytes = fs::read(&db_path).expect("read original legacy database");
+        let backup_path = migration_sidecar_path(&db_path, "backup", 123);
+
+        let error = copy_and_sanitize_legacy_backup(&db_path, &backup_path, |_| {
+            Err(AppError::new(
+                "CORPUS_DB_BACKUP_SANITIZE_FAILED",
+                "Injected backup sanitization failure.",
+            ))
+        })
+        .expect_err("sanitization failure must abort backup creation");
+
+        assert_eq!(error.code, "CORPUS_DB_BACKUP_SANITIZE_FAILED");
+        assert_eq!(
+            fs::read(&db_path).expect("read original database after backup failure"),
+            original_bytes
+        );
+        assert!(sqlite_database_paths(&backup_path)
+            .iter()
+            .all(|path| !path.exists()));
     }
 
     #[test]

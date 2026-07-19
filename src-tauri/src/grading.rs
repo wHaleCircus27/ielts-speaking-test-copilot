@@ -1,7 +1,14 @@
+use crate::endpoints::{
+    cloud_http_client_builder, endpoint_with_terminal_path, normalize_cloud_base_url,
+    read_bounded_response_body,
+};
+use crate::errors::cloud_request_id;
 use crate::{AppError, StoredDeepSeekConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::time::Duration;
+
+const MAX_DEEPSEEK_JSON_RESPONSE_BYTES: usize = 2 * 1024 * 1024;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -116,7 +123,11 @@ pub(crate) async fn validate_deepseek_config(
         .is_some_and(|key| !key.trim().is_empty());
     let base_url = config.base_url.trim().to_string();
 
-    if !api_key_configured || base_url.is_empty() {
+    if !config.enabled
+        || config.disclosure_accepted_version != Some(1)
+        || !api_key_configured
+        || base_url.is_empty()
+    {
         return Ok(ConfigValidationResult {
             ok: false,
             api_key_configured,
@@ -124,7 +135,11 @@ pub(crate) async fn validate_deepseek_config(
             model: config.model.as_str().to_string(),
             service_reachable: false,
             available_models: vec![],
-            message: if !api_key_configured {
+            message: if !config.enabled {
+                "DeepSeek 云服务当前未启用。".to_string()
+            } else if config.disclosure_accepted_version != Some(1) {
+                "请先接受当前云服务数据流说明。".to_string()
+            } else if !api_key_configured {
                 "请先在设置页配置 DeepSeek API Key。".to_string()
             } else {
                 "DeepSeek Base URL 不能为空。".to_string()
@@ -143,37 +158,23 @@ pub(crate) async fn validate_deepseek_config(
                 "请先在设置页配置 DeepSeek API Key。",
             )
         })?;
-    let endpoint = models_endpoint(&config.base_url)?;
-    let client = reqwest::Client::builder()
+    let endpoint = models_endpoint(&config.base_url, config.allow_insecure_localhost)?;
+    let client = cloud_http_client_builder()
         .timeout(Duration::from_secs(10))
         .build()
-        .map_err(|error| {
-            AppError::with_detail(
-                "DEEPSEEK_CLIENT_FAILED",
-                "DeepSeek 客户端初始化失败。",
-                error.to_string(),
-            )
-        })?;
+        .map_err(|_| AppError::new("DEEPSEEK_CLIENT_FAILED", "DeepSeek 客户端初始化失败。"))?;
     let response = client
         .get(endpoint)
         .bearer_auth(api_key)
         .send()
         .await
-        .map_err(|error| {
-            AppError::with_detail(
+        .map_err(|_| {
+            AppError::new(
                 "DEEPSEEK_CONNECTIVITY_FAILED",
                 "DeepSeek 连通性测试失败，请检查网络或 Base URL。",
-                error.to_string(),
             )
         })?;
     let status = response.status();
-    let body = response.text().await.map_err(|error| {
-        AppError::with_detail(
-            "DEEPSEEK_RESPONSE_READ_FAILED",
-            "读取 DeepSeek 连通性响应失败。",
-            error.to_string(),
-        )
-    })?;
 
     if !status.is_success() {
         return Ok(ConfigValidationResult {
@@ -190,13 +191,28 @@ pub(crate) async fn validate_deepseek_config(
         });
     }
 
-    let parsed: DeepSeekModelsResponse = serde_json::from_str(&body).map_err(|error| {
-        AppError::with_detail(
-            "DEEPSEEK_MODELS_RESPONSE_INVALID",
-            "DeepSeek 模型列表响应格式无法解析。",
-            format!("{}; body={}", error, summarize_for_debug(&body)),
-        )
-    })?;
+    let bounded_body = read_bounded_response_body(
+        response,
+        MAX_DEEPSEEK_JSON_RESPONSE_BYTES,
+        "DEEPSEEK_MODELS_RESPONSE_TOO_LARGE",
+        "DeepSeek 模型列表响应超过大小限制。",
+        |_| {
+            AppError::new(
+                "DEEPSEEK_RESPONSE_READ_FAILED",
+                "读取 DeepSeek 连通性响应失败。",
+            )
+        },
+    )
+    .await?;
+    let request_id = bounded_body.request_id;
+    let parsed: DeepSeekModelsResponse =
+        serde_json::from_slice(&bounded_body.bytes).map_err(|_| {
+            AppError::new(
+                "DEEPSEEK_MODELS_RESPONSE_INVALID",
+                "DeepSeek 模型列表响应格式无法解析。",
+            )
+            .with_request_id(request_id)
+        })?;
     let available_models = parsed
         .data
         .into_iter()
@@ -229,6 +245,19 @@ pub(crate) async fn grade_speaking(
 ) -> Result<GradeResult, AppError> {
     validate_grade_request(&request)?;
 
+    if !config.enabled {
+        return Err(AppError::new(
+            "DEEPSEEK_DISABLED",
+            "DeepSeek 云服务当前未启用。",
+        ));
+    }
+    if config.disclosure_accepted_version != Some(1) {
+        return Err(AppError::new(
+            "CLOUD_DISCLOSURE_REQUIRED",
+            "请先接受当前云服务数据流说明。",
+        ));
+    }
+
     let api_key = config
         .api_key
         .as_ref()
@@ -241,20 +270,14 @@ pub(crate) async fn grade_speaking(
             )
         })?;
 
-    let endpoint = chat_completions_endpoint(&config.base_url)?;
+    let endpoint = chat_completions_endpoint(&config.base_url, config.allow_insecure_localhost)?;
     let system_prompt = build_system_prompt();
     let user_prompt = build_user_prompt(&request);
 
-    let client = reqwest::Client::builder()
+    let client = cloud_http_client_builder()
         .timeout(Duration::from_secs(90))
         .build()
-        .map_err(|error| {
-            AppError::with_detail(
-                "DEEPSEEK_CLIENT_FAILED",
-                "DeepSeek 客户端初始化失败。",
-                error.to_string(),
-            )
-        })?;
+        .map_err(|_| AppError::new("DEEPSEEK_CLIENT_FAILED", "DeepSeek 客户端初始化失败。"))?;
 
     let response = client
         .post(endpoint)
@@ -270,37 +293,37 @@ pub(crate) async fn grade_speaking(
         }))
         .send()
         .await
-        .map_err(|error| {
-            AppError::with_detail(
+        .map_err(|_| {
+            AppError::new(
                 "DEEPSEEK_REQUEST_FAILED",
                 "DeepSeek 请求失败，请检查网络或 Base URL。",
-                error.to_string(),
             )
         })?;
 
     let status = response.status();
-    let body = response.text().await.map_err(|error| {
-        AppError::with_detail(
-            "DEEPSEEK_RESPONSE_READ_FAILED",
-            "读取 DeepSeek 响应失败。",
-            error.to_string(),
-        )
-    })?;
+    let request_id = cloud_request_id(response.headers());
 
     if !status.is_success() {
-        return Err(AppError::with_detail(
+        return Err(AppError::with_status(
             "DEEPSEEK_HTTP_ERROR",
             format!("DeepSeek 服务返回错误状态：{}。", status.as_u16()),
-            summarize_for_debug(&body),
-        ));
+            status.as_u16(),
+        )
+        .with_request_id(request_id));
     }
 
-    let parsed: DeepSeekResponse = serde_json::from_str(&body).map_err(|error| {
-        AppError::with_detail(
-            "DEEPSEEK_RESPONSE_INVALID",
-            "DeepSeek 响应格式无法解析。",
-            format!("{}; body={}", error, summarize_for_debug(&body)),
-        )
+    let bounded_body = read_bounded_response_body(
+        response,
+        MAX_DEEPSEEK_JSON_RESPONSE_BYTES,
+        "DEEPSEEK_RESPONSE_TOO_LARGE",
+        "DeepSeek 响应超过大小限制。",
+        |_| AppError::new("DEEPSEEK_RESPONSE_READ_FAILED", "读取 DeepSeek 响应失败。"),
+    )
+    .await?;
+    let request_id = bounded_body.request_id;
+    let parsed: DeepSeekResponse = serde_json::from_slice(&bounded_body.bytes).map_err(|_| {
+        AppError::new("DEEPSEEK_RESPONSE_INVALID", "DeepSeek 响应格式无法解析。")
+            .with_request_id(request_id.clone())
     })?;
 
     let content = parsed
@@ -309,11 +332,8 @@ pub(crate) async fn grade_speaking(
         .map(|choice| choice.message.content.trim())
         .filter(|content| !content.is_empty())
         .ok_or_else(|| {
-            AppError::with_detail(
-                "DEEPSEEK_RESPONSE_EMPTY",
-                "DeepSeek 未返回批改内容。",
-                summarize_for_debug(&body),
-            )
+            AppError::new("DEEPSEEK_RESPONSE_EMPTY", "DeepSeek 未返回批改内容。")
+                .with_request_id(request_id)
         })?;
 
     parse_grade_result(content)
@@ -335,36 +355,29 @@ fn validate_grade_request(request: &GradeRequest) -> Result<(), AppError> {
     Ok(())
 }
 
-fn chat_completions_endpoint(base_url: &str) -> Result<String, AppError> {
-    let trimmed = base_url.trim().trim_end_matches('/');
-    if trimmed.is_empty() {
-        return Err(AppError::new(
-            "DEEPSEEK_BASE_URL_EMPTY",
-            "DeepSeek Base URL 不能为空。",
-        ));
-    }
-
-    if trimmed.ends_with("/chat/completions") {
-        Ok(trimmed.to_string())
-    } else {
-        Ok(format!("{trimmed}/chat/completions"))
-    }
+fn chat_completions_endpoint(
+    base_url: &str,
+    allow_insecure_localhost: bool,
+) -> Result<url::Url, AppError> {
+    let normalized_endpoint =
+        normalize_cloud_base_url(base_url, allow_insecure_localhost, "DeepSeek")?;
+    endpoint_with_terminal_path(
+        normalized_endpoint.url,
+        None,
+        &["chat", "completions"],
+        "DeepSeek",
+    )
 }
 
-fn models_endpoint(base_url: &str) -> Result<String, AppError> {
-    let trimmed = base_url.trim().trim_end_matches('/');
-    if trimmed.is_empty() {
-        return Err(AppError::new(
-            "DEEPSEEK_BASE_URL_EMPTY",
-            "DeepSeek Base URL 不能为空。",
-        ));
-    }
-
-    if let Some(api_root) = trimmed.strip_suffix("/chat/completions") {
-        Ok(format!("{api_root}/models"))
-    } else {
-        Ok(format!("{trimmed}/models"))
-    }
+fn models_endpoint(base_url: &str, allow_insecure_localhost: bool) -> Result<url::Url, AppError> {
+    let normalized_endpoint =
+        normalize_cloud_base_url(base_url, allow_insecure_localhost, "DeepSeek")?;
+    endpoint_with_terminal_path(
+        normalized_endpoint.url,
+        Some(&["chat", "completions"]),
+        &["models"],
+        "DeepSeek",
+    )
 }
 
 fn build_system_prompt() -> &'static str {
@@ -483,11 +496,10 @@ fn escape_xml_text(value: &str) -> String {
 
 fn parse_grade_result(content: &str) -> Result<GradeResult, AppError> {
     let json_text = clean_json_object(content)?;
-    let result: GradeResult = serde_json::from_str(&json_text).map_err(|error| {
-        AppError::with_detail(
+    let result: GradeResult = serde_json::from_str(&json_text).map_err(|_| {
+        AppError::new(
             "GRADE_RESULT_SCHEMA_INVALID",
             "模型返回内容不符合批改结果格式。",
-            format!("{}; content={}", error, summarize_for_debug(content)),
         )
     })?;
 
@@ -509,25 +521,22 @@ fn clean_json_object(content: &str) -> Result<String, AppError> {
     }
 
     let start = cleaned.find('{').ok_or_else(|| {
-        AppError::with_detail(
+        AppError::new(
             "GRADE_RESULT_JSON_MISSING",
             "模型返回内容中没有 JSON 对象。",
-            summarize_for_debug(content),
         )
     })?;
     let end = cleaned.rfind('}').ok_or_else(|| {
-        AppError::with_detail(
+        AppError::new(
             "GRADE_RESULT_JSON_MISSING",
             "模型返回内容中没有完整 JSON 对象。",
-            summarize_for_debug(content),
         )
     })?;
 
     if start >= end {
-        return Err(AppError::with_detail(
+        return Err(AppError::new(
             "GRADE_RESULT_JSON_INVALID",
             "模型返回 JSON 边界异常。",
-            summarize_for_debug(content),
         ));
     }
 
@@ -567,17 +576,10 @@ fn validate_grade_result(result: &GradeResult) -> Result<(), AppError> {
     Ok(())
 }
 
-fn summarize_for_debug(value: &str) -> String {
-    value
-        .chars()
-        .take(600)
-        .collect::<String>()
-        .replace(['\n', '\r'], " ")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::CredentialStatus;
 
     fn valid_json() -> &'static str {
         r#"{
@@ -727,17 +729,67 @@ mod tests {
 
     #[test]
     fn builds_models_endpoint_from_api_root() {
-        let endpoint =
-            models_endpoint("https://api.deepseek.com").expect("models endpoint should build");
+        let endpoint = models_endpoint("https://api.deepseek.com", false)
+            .expect("models endpoint should build");
 
-        assert_eq!(endpoint, "https://api.deepseek.com/models");
+        assert_eq!(endpoint.as_str(), "https://api.deepseek.com/models");
     }
 
     #[test]
     fn builds_models_endpoint_from_chat_completions_endpoint() {
-        let endpoint = models_endpoint("https://api.deepseek.com/chat/completions")
+        let endpoint = models_endpoint("https://api.deepseek.com/chat/completions", false)
             .expect("models endpoint should build");
 
-        assert_eq!(endpoint, "https://api.deepseek.com/models");
+        assert_eq!(endpoint.as_str(), "https://api.deepseek.com/models");
+    }
+
+    #[test]
+    fn preserves_api_root_path_when_building_deepseek_endpoints() {
+        let chat_endpoint = chat_completions_endpoint("https://api.deepseek.com/v1", false)
+            .expect("chat endpoint should build");
+        let models_endpoint =
+            models_endpoint("https://api.deepseek.com/v1/chat/completions", false)
+                .expect("models endpoint should build");
+
+        assert_eq!(
+            chat_endpoint.as_str(),
+            "https://api.deepseek.com/v1/chat/completions"
+        );
+        assert_eq!(
+            models_endpoint.as_str(),
+            "https://api.deepseek.com/v1/models"
+        );
+    }
+
+    #[test]
+    fn rejects_unsafe_deepseek_endpoint() {
+        let error = chat_completions_endpoint("http://192.168.1.20/v1", true)
+            .expect_err("private endpoint must be rejected");
+
+        assert_eq!(error.code, "CLOUD_ENDPOINT_PRIVATE_IP");
+    }
+
+    #[test]
+    fn disabled_deepseek_returns_before_network_request() {
+        let config = StoredDeepSeekConfig {
+            api_key: Some("must-not-be-used".to_string()),
+            enabled: false,
+            base_url: "https://api.deepseek.com".to_string(),
+            model: crate::config::DeepSeekModel::DeepseekV4Flash,
+            allow_insecure_localhost: false,
+            credential_status: CredentialStatus::Configured,
+            disclosure_accepted_version: Some(1),
+        };
+        let request = GradeRequest {
+            text: "This answer is intentionally long enough for validation.".to_string(),
+            part: SpeakingPart::Part2,
+            question: None,
+            rag_examples: Vec::new(),
+        };
+
+        let error = tauri::async_runtime::block_on(grade_speaking(&config, request))
+            .expect_err("disabled service must be blocked");
+
+        assert_eq!(error.code, "DEEPSEEK_DISABLED");
     }
 }

@@ -4,12 +4,16 @@ use tauri::AppHandle;
 mod config;
 mod constants;
 mod corpus;
+mod credentials;
+mod endpoints;
 mod errors;
 mod grading;
 mod media;
 mod speech;
 
-pub(crate) use config::{read_config, StoredAzureConfig, StoredDeepSeekConfig, StoredZhipuConfig};
+pub(crate) use config::{
+    read_cloud_config, read_config, StoredAzureConfig, StoredDeepSeekConfig, StoredZhipuConfig,
+};
 pub(crate) use constants::ZHIPU_EMBEDDING_DIMENSIONS;
 pub(crate) use errors::AppError;
 
@@ -37,7 +41,7 @@ fn validate_azure_config(app: AppHandle) -> Result<speech::AzureConfigValidation
 
 #[tauri::command]
 async fn issue_azure_speech_token(app: AppHandle) -> Result<speech::AzureSpeechToken, AppError> {
-    let config = read_config(&app)?;
+    let config = read_cloud_config(&app)?;
     speech::issue_azure_speech_token(&config.azure).await
 }
 
@@ -45,7 +49,7 @@ async fn issue_azure_speech_token(app: AppHandle) -> Result<speech::AzureSpeechT
 async fn validate_deepseek_config(
     app: AppHandle,
 ) -> Result<grading::ConfigValidationResult, AppError> {
-    let config = read_config(&app)?;
+    let config = read_cloud_config(&app)?;
     grading::validate_deepseek_config(&config.deepseek).await
 }
 
@@ -54,12 +58,13 @@ async fn grade_speaking(
     app: AppHandle,
     request: grading::GradeRequest,
 ) -> Result<grading::GradeResult, AppError> {
-    let config = read_config(&app)?;
+    let config = read_cloud_config(&app)?;
     grading::grade_speaking(&config.deepseek, request).await
 }
 
 pub fn run() {
     tauri::Builder::default()
+        .manage(config::ConfigTransactionLock::default())
         .invoke_handler(tauri::generate_handler![
             health_check,
             config::get_app_config,
@@ -67,6 +72,7 @@ pub fn run() {
             config::clear_deepseek_key,
             config::clear_zhipu_key,
             config::clear_azure_key,
+            config::accept_cloud_disclosure,
             validate_azure_config,
             issue_azure_speech_token,
             validate_deepseek_config,
@@ -81,7 +87,10 @@ pub fn run() {
             corpus::diagnose_teacher_case_search,
             media::select_media_file,
             media::get_media_metadata,
-            media::transcode_media
+            media::transcode_media,
+            media::cancel_media_transcode,
+            media::delete_generated_media_file,
+            media::reconcile_generated_media
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
