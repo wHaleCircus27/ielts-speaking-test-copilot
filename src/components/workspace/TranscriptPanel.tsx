@@ -7,7 +7,9 @@ export function TranscriptPanel({
   onJumpToTimestamp,
 }: {
   tokens: TranscriptToken[];
-  wordTokenElementRefs: React.MutableRefObject<Record<string, HTMLButtonElement | null>>;
+  wordTokenElementRefs: React.MutableRefObject<
+    Record<string, HTMLButtonElement | null>
+  >;
   onJumpToTimestamp: (seconds: number) => void;
 }) {
   return (
@@ -15,15 +17,22 @@ export function TranscriptPanel({
       {tokens.map((token) => {
         if (token.type === "pause") {
           return (
-            <span key={token.id} className="mx-1 rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600">
+            <span
+              key={token.id}
+              className="mx-1 rounded bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600"
+            >
               [Pause: {(token.durationMs / 1000).toFixed(1)}s]
             </span>
           );
         }
 
-        const isLowAccuracy = token.accuracyScore !== undefined && token.accuracyScore < lowAccuracyThreshold;
+        const isLowAccuracy =
+          token.accuracyScore !== undefined &&
+          token.accuracyScore < lowAccuracyThreshold;
         const tooltipParts = [
-          token.accuracyScore === undefined ? "" : `Accuracy: ${token.accuracyScore.toFixed(1)}`,
+          token.accuracyScore === undefined
+            ? ""
+            : `Accuracy: ${token.accuracyScore.toFixed(1)}`,
           ...(token.phonemeErrors ?? []),
         ].filter(Boolean);
 
@@ -37,7 +46,9 @@ export function TranscriptPanel({
             title={tooltipParts.join("\n")}
             onClick={() => onJumpToTimestamp(token.startMs / 1000)}
             className={`transcript-word mx-0.5 rounded px-1 py-0.5 transition hover:bg-current/10 ${
-              isLowAccuracy ? "text-red-600 underline decoration-red-500 decoration-2 underline-offset-4" : ""
+              isLowAccuracy
+                ? "text-red-600 underline decoration-red-500 decoration-2 underline-offset-4"
+                : ""
             }`}
           >
             {token.text}

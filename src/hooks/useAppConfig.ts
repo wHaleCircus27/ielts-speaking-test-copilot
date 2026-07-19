@@ -7,14 +7,24 @@ import {
   type ThemeId,
 } from "../types/config";
 import type { AppError } from "../types/errors";
-import { getReferenceTheme, getReferenceThemeClass, getThemeLabel, getTypographyClass, isTauriRuntimeAvailable } from "../app/workspaceUtils";
+import {
+  getReferenceTheme,
+  getReferenceThemeClass,
+  getThemeLabel,
+  getTypographyClass,
+  isTauriRuntimeAvailable,
+} from "../app/workspaceUtils";
 
-export function useAppConfig({ onThemeMenuSelection }: { onThemeMenuSelection?: () => void } = {}) {
+export function useAppConfig({
+  onThemeMenuSelection,
+}: { onThemeMenuSelection?: () => void } = {}) {
   const [config, setConfig] = useState<PublicAppConfig>(defaultPublicConfig);
-  const [previewTheme, setPreviewTheme] = useState<ThemeId>(defaultPublicConfig.theme);
-  const [previewTypography, setPreviewTypography] = useState<PublicAppConfig["typography"]>(
-    defaultPublicConfig.typography,
+  const [previewTheme, setPreviewTheme] = useState<ThemeId>(
+    defaultPublicConfig.theme,
   );
+  const [previewTypography, setPreviewTypography] = useState<
+    PublicAppConfig["typography"]
+  >(defaultPublicConfig.typography);
   const [health, setHealth] = useState<HealthCheckResult | null>(null);
   const [startupError, setStartupError] = useState<AppError | null>(null);
   const [menuClock, setMenuClock] = useState("");
@@ -24,14 +34,25 @@ export function useAppConfig({ onThemeMenuSelection }: { onThemeMenuSelection?: 
     () => ({ ...config, theme: previewTheme, typography: previewTypography }),
     [config, previewTheme, previewTypography],
   );
-  const serviceLabel = health ? "大模型测评引擎已就绪" : startupError ? "本地服务未连接" : "检查本地服务";
+  const serviceLabel = health
+    ? "大模型测评引擎已就绪"
+    : startupError
+      ? "本地服务未连接"
+      : "检查本地服务";
   const themeLabel = getThemeLabel(previewTheme);
   const referenceTheme = getReferenceTheme(previewTheme);
   const themeClass = getReferenceThemeClass(previewTheme);
-  const typographyClass = getTypographyClass(previewTypography.font, previewTypography.fontSize);
+  const typographyClass = getTypographyClass(
+    previewTypography.font,
+    previewTypography.fontSize,
+  );
 
   useEffect(() => {
-    document.documentElement.classList.remove("theme-claude", "theme-animal", "theme-glass");
+    document.documentElement.classList.remove(
+      "theme-claude",
+      "theme-animal",
+      "theme-glass",
+    );
     document.documentElement.classList.add(previewTheme);
   }, [previewTheme]);
 
@@ -61,8 +82,10 @@ export function useAppConfig({ onThemeMenuSelection }: { onThemeMenuSelection?: 
 
   useEffect(() => {
     const handleThemeMenuPointer = (event: Event) => {
-      const targetElement = event.target instanceof Element ? event.target : null;
-      const themeButton = targetElement?.closest<HTMLButtonElement>("[data-theme-id]");
+      const targetElement =
+        event.target instanceof Element ? event.target : null;
+      const themeButton =
+        targetElement?.closest<HTMLButtonElement>("[data-theme-id]");
       const themeId = themeButton?.dataset.themeId as ThemeId | undefined;
       if (!themeId) {
         return;

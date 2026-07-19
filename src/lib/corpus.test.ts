@@ -24,10 +24,12 @@ const teacherCaseMatches: TeacherCaseMatch[] = [
 
 describe("corpus RAG helpers", () => {
   it("builds teacher case search query from question and answer", () => {
-    expect(buildTeacherCaseSearchQuery(" Describe a trip ", " I went to Paris. ")).toBe(
-      "Question: Describe a trip\nAnswer: I went to Paris.",
+    expect(
+      buildTeacherCaseSearchQuery(" Describe a trip ", " I went to Paris. "),
+    ).toBe("Question: Describe a trip\nAnswer: I went to Paris.");
+    expect(buildTeacherCaseSearchQuery(" ", " I went to Paris. ")).toBe(
+      "I went to Paris.",
     );
-    expect(buildTeacherCaseSearchQuery(" ", " I went to Paris. ")).toBe("I went to Paris.");
   });
 
   it("maps teacher case matches to prompt examples with scores", () => {

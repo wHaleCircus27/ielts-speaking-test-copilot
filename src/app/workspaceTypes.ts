@@ -2,8 +2,15 @@ import type { SpeechAssessmentResult, TranscriptToken } from "../types/speech";
 
 export type MenuId = "app" | "file" | "themes";
 export type InputMode = "media" | "text";
-export type ResultTab = "overall" | "fluency" | "lexical" | "grammar" | "pronunciation" | "corrections";
-export type CorrectionCategory = "grammar" | "vocabulary" | "pronunciation" | "coherence";
+export type ResultTab =
+  | "overall"
+  | "fluency"
+  | "lexical"
+  | "grammar"
+  | "pronunciation"
+  | "corrections";
+export type CorrectionCategory =
+  "grammar" | "vocabulary" | "pronunciation" | "coherence";
 export type ReferenceTheme = "claude" | "animal-crossing" | "liquid-glass";
 
 export type TranscriptChunk = {
@@ -66,4 +73,12 @@ export type CorrectionRecord = {
   duration: string;
   transcript: TranscriptChunk[];
   result: WorkspaceResult;
+  audioPath?: string;
+};
+
+export type AddCorrectionRecordInput = {
+  title: string;
+  fileName: string;
+  result: WorkspaceResult;
+  audioPath?: string;
 };

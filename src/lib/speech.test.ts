@@ -1,5 +1,88 @@
-import { describe, expect, it } from "vitest";
-import { mapAzureSpeechResultJson } from "./speech";
+import { describe, expect, it, vi } from "vitest";
+import {
+  calculateSpeechAssessmentTimeoutMs,
+  mapAzureSpeechResultJson,
+  readResponseBodyWithLimit,
+  runContinuousPronunciationAssessment,
+} from "./speech";
+
+describe("Azure speech timeout", () => {
+  it("clamps the total timeout between two and forty-six minutes", () => {
+    expect(calculateSpeechAssessmentTimeoutMs(1_000)).toBe(2 * 60 * 1000);
+    expect(calculateSpeechAssessmentTimeoutMs(10 * 60 * 1000)).toBe(
+      16 * 60 * 1000,
+    );
+    expect(calculateSpeechAssessmentTimeoutMs(60 * 60 * 1000)).toBe(
+      46 * 60 * 1000,
+    );
+  });
+});
+
+describe("Azure WAV streaming", () => {
+  it("rejects a streamed response as soon as it exceeds the byte limit", async () => {
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array([1, 2, 3]));
+          controller.enqueue(new Uint8Array([4, 5, 6]));
+          controller.close();
+        },
+      }),
+    );
+
+    await expect(readResponseBodyWithLimit(response, 5)).rejects.toMatchObject({
+      code: "AZURE_WAV_TOO_LARGE",
+    });
+  });
+
+  it("returns streamed bytes without using response.arrayBuffer", async () => {
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array([1, 2]));
+          controller.enqueue(new Uint8Array([3, 4]));
+          controller.close();
+        },
+      }),
+    );
+    const arrayBufferSpy = vi.spyOn(response, "arrayBuffer");
+
+    await expect(readResponseBodyWithLimit(response, 5)).resolves.toEqual(
+      new Uint8Array([1, 2, 3, 4]),
+    );
+    expect(arrayBufferSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("Azure recognizer cancellation", () => {
+  it("requests recognizer stop exactly once before rejecting cancellation", async () => {
+    let stopCalls = 0;
+    let finishStopping: (() => void) | undefined;
+    const recognizer = {
+      startContinuousRecognitionAsync(success: () => void) {
+        success();
+      },
+      stopContinuousRecognitionAsync(success: () => void) {
+        stopCalls += 1;
+        finishStopping = success;
+      },
+    } as unknown as Parameters<typeof runContinuousPronunciationAssessment>[0];
+    const abortController = new AbortController();
+    const assessmentPromise = runContinuousPronunciationAssessment(
+      recognizer,
+      abortController.signal,
+    );
+
+    recognizer.canceled?.(recognizer, {} as never);
+    abortController.abort();
+    expect(stopCalls).toBe(1);
+    finishStopping?.();
+
+    await expect(assessmentPromise).rejects.toMatchObject({
+      code: "AZURE_SPEECH_SERVICE_CANCELED",
+    });
+  });
+});
 
 describe("Azure speech result mapping", () => {
   it("maps Microsoft-style detailed Azure JSON into the app speech assessment shape", () => {
@@ -91,7 +174,9 @@ describe("Azure speech result mapping", () => {
         durationMs: 500,
         accuracyScore: 58,
         errorType: "Mispronunciation",
-        phonemes: [expect.objectContaining({ phoneme: "er", accuracyScore: 41 })],
+        phonemes: [
+          expect.objectContaining({ phoneme: "er", accuracyScore: 41 }),
+        ],
       }),
       expect.objectContaining({
         word: "today",
@@ -126,6 +211,8 @@ describe("Azure speech result mapping", () => {
   });
 
   it("throws a normalized app error for invalid Azure JSON", () => {
-    expect(() => mapAzureSpeechResultJson("not-json")).toThrow("Azure 语音评估响应无法解析。");
+    expect(() => mapAzureSpeechResultJson("not-json")).toThrow(
+      "Azure 语音评估响应无法解析。",
+    );
   });
 });

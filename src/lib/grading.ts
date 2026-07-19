@@ -1,5 +1,9 @@
 import { invokeCommand } from "./tauri";
-import type { ConfigValidationResult, GradeRequest, GradeResult } from "../types/grading";
+import type {
+  ConfigValidationResult,
+  GradeRequest,
+  GradeResult,
+} from "../types/grading";
 
 function isTauriRuntimeAvailable() {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;

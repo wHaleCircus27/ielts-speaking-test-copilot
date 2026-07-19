@@ -1,5 +1,6 @@
 export type SpeechAssessRequest = {
   wavPath: string;
+  durationMs: number;
   referenceText?: string;
 };
 

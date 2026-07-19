@@ -1,16 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { buildTranscriptTokens, findCurrentWordToken, lowAccuracyThreshold, severePauseThresholdMs } from "./transcript";
+import {
+  buildTranscriptTokens,
+  findCurrentWordToken,
+  lowAccuracyThreshold,
+  severePauseThresholdMs,
+} from "./transcript";
 
 describe("transcript tokens", () => {
   it("inserts severe pause tokens between distant words", () => {
     const tokens = buildTranscriptTokens([
       { word: "hello", startMs: 0, durationMs: 500, accuracyScore: 90 },
-      { word: "world", startMs: severePauseThresholdMs + 700, durationMs: 400, accuracyScore: 88 },
+      {
+        word: "world",
+        startMs: severePauseThresholdMs + 700,
+        durationMs: 400,
+        accuracyScore: 88,
+      },
     ]);
 
     expect(tokens).toEqual([
       expect.objectContaining({ type: "word", text: "hello" }),
-      expect.objectContaining({ type: "pause", durationMs: severePauseThresholdMs + 200, severe: true }),
+      expect.objectContaining({
+        type: "pause",
+        durationMs: severePauseThresholdMs + 200,
+        severe: true,
+      }),
       expect.objectContaining({ type: "word", text: "world" }),
     ]);
   });
@@ -49,7 +63,11 @@ describe("transcript tokens", () => {
     expect(tokens).toEqual([
       expect.objectContaining({ type: "word", text: "first" }),
       expect.objectContaining({ type: "word", text: "second" }),
-      expect.objectContaining({ type: "pause", durationMs: 3100, severe: true }),
+      expect.objectContaining({
+        type: "pause",
+        durationMs: 3100,
+        severe: true,
+      }),
       expect.objectContaining({ type: "word", text: "third" }),
     ]);
   });
@@ -62,6 +80,8 @@ describe("transcript tokens", () => {
 
     const currentToken = findCurrentWordToken(tokens, 0.75);
 
-    expect(currentToken).toEqual(expect.objectContaining({ type: "word", text: "second" }));
+    expect(currentToken).toEqual(
+      expect.objectContaining({ type: "word", text: "second" }),
+    );
   });
 });

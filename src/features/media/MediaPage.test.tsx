@@ -1,10 +1,16 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MediaPage } from "./MediaPage";
-import { getMediaMetadata, selectMediaFile, transcodeMedia } from "../../lib/media";
+import {
+  cancelMediaTranscode,
+  getMediaMetadata,
+  selectMediaFile,
+  transcodeMedia,
+} from "../../lib/media";
 import { assessPronunciation, validateAzureConfig } from "../../lib/speech";
 
 vi.mock("../../lib/media", () => ({
+  cancelMediaTranscode: vi.fn(),
   getMediaMetadata: vi.fn(),
   selectMediaFile: vi.fn(),
   transcodeMedia: vi.fn(),
@@ -28,6 +34,7 @@ vi.mock("@tauri-apps/api/webview", () => ({
 describe("MediaPage", () => {
   beforeEach(() => {
     vi.mocked(getMediaMetadata).mockReset();
+    vi.mocked(cancelMediaTranscode).mockReset();
     vi.mocked(selectMediaFile).mockReset();
     vi.mocked(transcodeMedia).mockReset();
     vi.mocked(assessPronunciation).mockReset();
@@ -38,6 +45,10 @@ describe("MediaPage", () => {
       region: "eastasia",
       language: "en-US",
       message: "Azure Speech 配置可用。",
+    });
+    vi.mocked(cancelMediaTranscode).mockResolvedValue({
+      jobId: "00000000-0000-4000-8000-000000000000",
+      canceled: true,
     });
   });
 
@@ -76,6 +87,7 @@ describe("MediaPage", () => {
       sampleRate: 16000,
       channels: 1,
       codec: "pcm_s16le",
+      durationMs: 3_500,
       logSummary: "transcoded",
     });
 
@@ -96,7 +108,10 @@ describe("MediaPage", () => {
     });
 
     expect(screen.getByText("/Users/test/cache/audio.wav")).toBeInTheDocument();
-    expect(transcodeMedia).toHaveBeenCalledWith({ inputPath: "/Users/test/audio.m4a" });
+    expect(transcodeMedia).toHaveBeenCalledWith({
+      inputPath: "/Users/test/audio.m4a",
+      jobId: expect.any(String),
+    });
   });
 
   it("runs Azure speech assessment after transcode and renders transcript tokens", async () => {
@@ -114,6 +129,7 @@ describe("MediaPage", () => {
       sampleRate: 16000,
       channels: 1,
       codec: "pcm_s16le",
+      durationMs: 3_500,
       logSummary: "transcoded",
     });
     vi.mocked(assessPronunciation).mockResolvedValue({
@@ -156,7 +172,10 @@ describe("MediaPage", () => {
     expect(screen.getByText("84.0")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hello" })).toBeInTheDocument();
     expect(screen.getByText("[Pause: 2.3s]")).toBeInTheDocument();
-    expect(assessPronunciation).toHaveBeenCalledWith({ wavPath: "/Users/test/cache/audio.wav" });
+    expect(assessPronunciation).toHaveBeenCalledWith(
+      { wavPath: "/Users/test/cache/audio.wav", durationMs: 3_500 },
+      expect.any(AbortSignal),
+    );
   });
 
   it("blocks transcode when the selected media type is unsupported", async () => {
@@ -211,5 +230,33 @@ describe("MediaPage", () => {
     });
 
     expect(screen.getByText("媒体转码失败。")).toBeInTheDocument();
+  });
+
+  it("cancels an active transcode job by job id", async () => {
+    vi.mocked(getMediaMetadata).mockResolvedValue({
+      path: "/Users/test/long.m4a",
+      fileName: "long.m4a",
+      extension: "m4a",
+      sizeBytes: 4096,
+      supported: true,
+      durationMs: 35_000,
+    });
+    vi.mocked(transcodeMedia).mockImplementation(
+      () => new Promise(() => undefined),
+    );
+
+    render(<MediaPage />);
+    fireEvent.change(screen.getByLabelText("媒体文件路径"), {
+      target: { value: "/Users/test/long.m4a" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "检查" }));
+    await screen.findByText("格式可转码");
+
+    fireEvent.click(screen.getByRole("button", { name: /转码为 WAV/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "取消" }));
+
+    await waitFor(() => {
+      expect(cancelMediaTranscode).toHaveBeenCalledWith(expect.any(String));
+    });
   });
 });

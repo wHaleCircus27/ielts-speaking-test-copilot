@@ -2,8 +2,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { PublicAppConfig } from "../../types/config";
 import type { SpeakingPart } from "../../types/grading";
-import type { CorrectionRecord, ResultTab, WorkspaceResult as WorkspaceResultData } from "../../app/workspaceTypes";
-import { getAccentButtonClass, getCardClass, getFileNameFromPath, getSecondaryButtonClass } from "../../app/workspaceUtils";
+import type {
+  AddCorrectionRecordInput,
+  CorrectionRecord,
+  ResultTab,
+} from "../../app/workspaceTypes";
+import type { GradingSubmissionOutcome } from "../../hooks/useGradingWorkflow";
+import {
+  getAccentButtonClass,
+  getCardClass,
+  getFileNameFromPath,
+  getSecondaryButtonClass,
+} from "../../app/workspaceUtils";
 import { useMediaWorkflow } from "../../hooks/useMediaWorkflow";
 import { useTranscriptPlayback } from "../../hooks/useTranscriptPlayback";
 import { WorkspaceInput } from "./WorkspaceInput";
@@ -27,14 +37,14 @@ export function Workspace({
   pendingMediaPath: string;
   serviceReady: boolean;
   onClearPendingMedia: () => void;
-  onAddRecord: (title: string, fileName: string, result: WorkspaceResultData) => void;
+  onAddRecord: (input: AddCorrectionRecordInput) => unknown;
   onSubmitText: (input: {
     answer: string;
     part: SpeakingPart;
     question: string;
     title: string;
     fileName: string;
-  }) => Promise<void>;
+  }) => Promise<GradingSubmissionOutcome>;
 }) {
   const [customTitle, setCustomTitle] = useState("");
   const [question, setQuestion] = useState("");
@@ -43,14 +53,18 @@ export function Workspace({
   const [activeTab, setActiveTab] = useState<ResultTab>("overall");
   const [resultSelectorOpen, setResultSelectorOpen] = useState(false);
   const [resultSelectorDismissed, setResultSelectorDismissed] = useState(false);
+  const [mediaPlaybackUnavailable, setMediaPlaybackUnavailable] =
+    useState(false);
   const browserFileInputRef = useRef<HTMLInputElement | null>(null);
   const resultSelectorHoverTimerRef = useRef<number | null>(null);
 
   const displayedResult = activeRecord?.result ?? null;
-  const displayedTranscript = displayedResult?.transcript ?? activeRecord?.transcript ?? [];
+  const displayedTranscript =
+    displayedResult?.transcript ?? activeRecord?.transcript ?? [];
   const displayedTranscriptTokens = displayedResult?.transcriptTokens ?? [];
   const displayedTitle = activeRecord?.title ?? "雅思口语作业批改";
   const transcriptPlayback = useTranscriptPlayback(displayedTranscriptTokens);
+  const resetPlaybackState = transcriptPlayback.resetPlaybackState;
 
   const mediaWorkflow = useMediaWorkflow({
     config,
@@ -61,7 +75,7 @@ export function Workspace({
     customTitle,
     onAddRecord,
     onClearPendingMedia,
-    resetPlaybackState: transcriptPlayback.resetPlaybackState,
+    resetPlaybackState,
   });
 
   useEffect(() => {
@@ -69,9 +83,10 @@ export function Workspace({
       setActiveTab("overall");
       setResultSelectorOpen(false);
       setResultSelectorDismissed(false);
-      transcriptPlayback.resetPlaybackState();
+      setMediaPlaybackUnavailable(false);
+      resetPlaybackState();
     }
-  }, [activeRecord]);
+  }, [activeRecord, resetPlaybackState]);
 
   useEffect(() => {
     return () => {
@@ -85,22 +100,50 @@ export function Workspace({
   const accentClass = getAccentButtonClass(currentTheme);
   const secondaryClass = getSecondaryButtonClass(currentTheme);
   const answerLength = textInput.trim().length;
-  const canSubmitText = serviceReady && config.deepseek.apiKeyConfigured && answerLength >= 20 && !isLoading;
+  const canSubmitText =
+    serviceReady &&
+    config.deepseek.enabled &&
+    config.deepseek.credentialStatus === "configured" &&
+    config.disclosure.acceptedVersion === config.disclosure.latestVersion &&
+    answerLength >= 20 &&
+    !mediaWorkflow.mediaBusy &&
+    !isLoading;
   const mediaPlayerUrl = useMemo(
-    () => (mediaWorkflow.mediaTranscodeResult ? convertFileSrc(mediaWorkflow.mediaTranscodeResult.outputPath) : null),
-    [mediaWorkflow.mediaTranscodeResult],
+    () =>
+      activeRecord?.audioPath ? convertFileSrc(activeRecord.audioPath) : null,
+    [activeRecord?.audioPath],
   );
+  const historicalAudioUnavailable =
+    Boolean(activeRecord?.result.speechAssessment) &&
+    (!mediaPlayerUrl || mediaPlaybackUnavailable);
   const resultTabOptions = displayedResult
     ? [
         { id: "overall" as const, name: "综合批语" },
-        { id: "fluency" as const, name: `流利度 (${displayedResult.fluencyScore.score})` },
-        { id: "lexical" as const, name: `词汇 (${displayedResult.lexicalScore.score})` },
-        { id: "grammar" as const, name: `语法 (${displayedResult.grammarScore.score})` },
-        { id: "pronunciation" as const, name: `发音 (${displayedResult.pronunciationScore.score})` },
-        { id: "corrections" as const, name: `病句修正 (${displayedResult.keyCorrections.length})` },
+        {
+          id: "fluency" as const,
+          name: `流利度 (${displayedResult.fluencyScore.score})`,
+        },
+        {
+          id: "lexical" as const,
+          name: `词汇 (${displayedResult.lexicalScore.score})`,
+        },
+        {
+          id: "grammar" as const,
+          name: `语法 (${displayedResult.grammarScore.score})`,
+        },
+        {
+          id: "pronunciation" as const,
+          name: `发音 (${displayedResult.pronunciationScore.score})`,
+        },
+        {
+          id: "corrections" as const,
+          name: `病句修正 (${displayedResult.keyCorrections.length})`,
+        },
       ]
     : [];
-  const activeResultTabName = resultTabOptions.find((tabOption) => tabOption.id === activeTab)?.name ?? "综合批语";
+  const activeResultTabName =
+    resultTabOptions.find((tabOption) => tabOption.id === activeTab)?.name ??
+    "综合批语";
 
   function openResultSelectorAfterDelay() {
     if (resultSelectorHoverTimerRef.current !== null) {
@@ -134,10 +177,16 @@ export function Workspace({
   }
 
   async function submitCorrection() {
+    if (mediaWorkflow.mediaBusy || isLoading) {
+      return;
+    }
     const title =
       customTitle.trim() ||
       question.trim() ||
-      (mediaWorkflow.mediaMetadata?.fileName ?? getFileNameFromPath(mediaWorkflow.mediaPath)).replace(/\.[^/.]+$/, "") ||
+      (
+        mediaWorkflow.mediaMetadata?.fileName ??
+        getFileNameFromPath(mediaWorkflow.mediaPath)
+      ).replace(/\.[^/.]+$/, "") ||
       "IELTS 口语练习";
 
     if (mediaWorkflow.inputMode === "media") {
@@ -145,15 +194,27 @@ export function Workspace({
       return;
     }
 
-    await onSubmitText({
-      answer: textInput,
+    const submittedTextInput = textInput;
+    const submittedTitle = customTitle;
+    const submittedQuestion = question;
+    const submissionOutcome = await onSubmitText({
+      answer: submittedTextInput,
       part,
-      question,
+      question: submittedQuestion,
       title,
       fileName: "Typed Input",
     });
-    setTextInput("");
-    setCustomTitle("");
+    if (submissionOutcome.status === "succeeded") {
+      setTextInput((currentTextInput) =>
+        currentTextInput === submittedTextInput ? "" : currentTextInput,
+      );
+      setCustomTitle((currentTitle) =>
+        currentTitle === submittedTitle ? "" : currentTitle,
+      );
+      setQuestion((currentQuestion) =>
+        currentQuestion === submittedQuestion ? "" : currentQuestion,
+      );
+    }
   }
 
   return (
@@ -170,6 +231,7 @@ export function Workspace({
           mediaMetadata={mediaWorkflow.mediaMetadata}
           mediaTranscodeResult={mediaWorkflow.mediaTranscodeResult}
           speechAssessmentResult={mediaWorkflow.speechAssessmentResult}
+          mediaPhase={mediaWorkflow.mediaPhase}
           mediaBusy={mediaWorkflow.mediaBusy}
           mediaPreviewOnly={mediaWorkflow.mediaPreviewOnly}
           mediaNotice={mediaWorkflow.mediaNotice}
@@ -177,7 +239,9 @@ export function Workspace({
           dragging={mediaWorkflow.dragging}
           answerLength={answerLength}
           canSubmitText={canSubmitText}
-          canStartMediaCorrection={mediaWorkflow.canStartMediaCorrection}
+          canStartMediaCorrection={
+            mediaWorkflow.canStartMediaCorrection && !isLoading
+          }
           isLoading={isLoading}
           serviceReady={serviceReady}
           cardClass={cardClass}
@@ -190,10 +254,15 @@ export function Workspace({
           onSetPart={setPart}
           onSetTextInput={setTextInput}
           onSetDragging={mediaWorkflow.setDragging}
-          onChooseMediaFile={() => void mediaWorkflow.chooseMediaFileFromDialog(browserFileInputRef.current)}
+          onChooseMediaFile={() =>
+            void mediaWorkflow.chooseMediaFileFromDialog(
+              browserFileInputRef.current,
+            )
+          }
           onHandleDroppedFile={mediaWorkflow.handleDroppedFile}
           onLoadBrowserPreviewFile={mediaWorkflow.loadBrowserPreviewFile}
           onClearSelectedMedia={mediaWorkflow.clearSelectedMedia}
+          onCancelMedia={() => void mediaWorkflow.cancelMediaWorkflow()}
           onSubmitCorrection={() => void submitCorrection()}
         />
 
@@ -206,6 +275,7 @@ export function Workspace({
           displayedTranscript={displayedTranscript}
           displayedTitle={displayedTitle}
           mediaPlayerUrl={mediaPlayerUrl}
+          mediaPlaybackUnavailable={historicalAudioUnavailable}
           currentTime={transcriptPlayback.currentTime}
           audioDuration={transcriptPlayback.audioDuration}
           isPlaying={transcriptPlayback.isPlaying}
@@ -225,6 +295,10 @@ export function Workspace({
           onSetCurrentTime={transcriptPlayback.setCurrentTime}
           onSetAudioDuration={transcriptPlayback.setAudioDuration}
           onSetIsPlaying={transcriptPlayback.setIsPlaying}
+          onMediaPlaybackError={() => {
+            setMediaPlaybackUnavailable(true);
+            transcriptPlayback.setIsPlaying(false);
+          }}
           onSetResultSelectorDismissed={setResultSelectorDismissed}
           onSetResultSelectorOpen={setResultSelectorOpen}
         />

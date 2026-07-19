@@ -1,4 +1,8 @@
-import type { InputHTMLAttributes, PropsWithChildren, SelectHTMLAttributes } from "react";
+import type {
+  InputHTMLAttributes,
+  PropsWithChildren,
+  SelectHTMLAttributes,
+} from "react";
 
 export function Field({
   label,
@@ -9,7 +13,9 @@ export function Field({
     <label className="grid gap-2 text-sm text-text">
       <span className="font-medium">{label}</span>
       {children}
-      {hint ? <span className="text-xs leading-5 text-muted">{hint}</span> : null}
+      {hint ? (
+        <span className="text-xs leading-5 text-muted">{hint}</span>
+      ) : null}
     </label>
   );
 }

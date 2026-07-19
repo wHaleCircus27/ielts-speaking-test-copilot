@@ -1,5 +1,13 @@
-import { buildTranscriptTokens, getTranscriptText, lowAccuracyThreshold } from "../lib/transcript";
-import type { FontPreference, FontSizePreference, ThemeId } from "../types/config";
+import {
+  buildTranscriptTokens,
+  getTranscriptText,
+  lowAccuracyThreshold,
+} from "../lib/transcript";
+import type {
+  FontPreference,
+  FontSizePreference,
+  ThemeId,
+} from "../types/config";
 import type { GradeResult } from "../types/grading";
 import type { SpeechAssessmentResult } from "../types/speech";
 import type {
@@ -33,7 +41,10 @@ export function getReferenceThemeClass(theme: ThemeId) {
   return "assessor-theme-claude";
 }
 
-export function getTypographyClass(font: FontPreference, fontSize: FontSizePreference) {
+export function getTypographyClass(
+  font: FontPreference,
+  fontSize: FontSizePreference,
+) {
   return `typography-font-${font} typography-size-${fontSize}`;
 }
 
@@ -77,7 +88,10 @@ export function getCardClass(theme: ReferenceTheme) {
   return "rounded-xl border border-[#E8E8E6] bg-white shadow-xs";
 }
 
-export function getScoreData(result: WorkspaceResult | null, activeTab: ResultTab) {
+export function getScoreData(
+  result: WorkspaceResult | null,
+  activeTab: ResultTab,
+) {
   if (!result) {
     return null;
   }
@@ -116,19 +130,28 @@ export function mapGradeResultToWorkspaceResult(
         ? "模型识别到可替换的词汇与表达，建议优先整理为个人高频替换表。"
         : "当前词汇错误较少，但仍可继续升级搭配和地道表达。",
       strengths: ["核心意思表达清楚", "词汇基本符合题目语境"],
-      improvements: result.vocabulary_corrections.map((correction) => `${correction.original} -> ${correction.suggested}`).slice(0, 3),
+      improvements: result.vocabulary_corrections
+        .map(
+          (correction) => `${correction.original} -> ${correction.suggested}`,
+        )
+        .slice(0, 3),
     },
     grammarScore: {
       score: result.sub_scores.GRA,
-      feedback: "请结合句级修正复盘语法准确性，重点检查时态、单复数和从句结构。",
+      feedback:
+        "请结合句级修正复盘语法准确性，重点检查时态、单复数和从句结构。",
       strengths: ["基础句意完整", "有重构为复杂句的空间"],
       improvements: ["检查主谓一致", "将简单句合并为更自然的复合句"],
     },
     pronunciationScore: {
       score: result.sub_scores.PR,
-      feedback: "当前文本批改无法直接评估真实发音；该分值来自模型对文本表现的结构化估计。",
+      feedback:
+        "当前文本批改无法直接评估真实发音；该分值来自模型对文本表现的结构化估计。",
       strengths: ["文本节奏可支持口头表达", "内容块适合按意群朗读"],
-      improvements: ["接入音频评估后复盘重音和连读", "按 transcript 分句练习停顿"],
+      improvements: [
+        "接入音频评估后复盘重音和连读",
+        "按 transcript 分句练习停顿",
+      ],
     },
     keyCorrections: result.vocabulary_corrections.map((correction) => ({
       original: correction.original,
@@ -151,13 +174,23 @@ export function mapSpeechAssessmentToWorkspaceResult(
   const transcriptText = getTranscriptText(result);
   const transcript = splitTextIntoTranscript(transcriptText);
   const transcriptTokens = buildTranscriptTokens(result.words);
-  const pronunciationScore = normalizeAzureScoreToBand(result.overall.pronunciationScore);
+  const pronunciationScore = normalizeAzureScoreToBand(
+    result.overall.pronunciationScore,
+  );
   const fluencyScore = normalizeAzureScoreToBand(result.overall.fluencyScore);
   const textWorkspaceResult = transcriptGradeResult
-    ? mapGradeResultToWorkspaceResult(transcriptGradeResult, transcriptText, ragUsage)
+    ? mapGradeResultToWorkspaceResult(
+        transcriptGradeResult,
+        transcriptText,
+        ragUsage,
+      )
     : null;
   const lowAccuracyWords = result.words
-    .filter((word) => word.accuracyScore !== undefined && word.accuracyScore < lowAccuracyThreshold)
+    .filter(
+      (word) =>
+        word.accuracyScore !== undefined &&
+        word.accuracyScore < lowAccuracyThreshold,
+    )
     .slice(0, 8);
   const pronunciationCorrections = lowAccuracyWords.map((word) => ({
     original: word.word,
@@ -165,7 +198,8 @@ export function mapSpeechAssessmentToWorkspaceResult(
     reason: `Azure 逐词 Accuracy 为 ${formatOptionalScore(word.accuracyScore)}，建议点击 transcript 回听并跟读。`,
     category: "pronunciation" as const,
   }));
-  const speechFeedback = "Azure 已基于转码后的 WAV 完成长音频发音评估。Pronunciation、Fluency 和 Prosody 来自真实音频；Vocabulary、Grammar 和 Topic 由 DeepSeek 基于 transcript、题目和教师案例判断。";
+  const speechFeedback =
+    "Azure 已基于转码后的 WAV 完成长音频发音评估。Pronunciation、Fluency 和 Prosody 来自真实音频；Vocabulary、Grammar 和 Topic 由 DeepSeek 基于 transcript、题目和教师案例判断。";
 
   return {
     overallScore: textWorkspaceResult?.overallScore ?? pronunciationScore,
@@ -173,23 +207,33 @@ export function mapSpeechAssessmentToWorkspaceResult(
       score: fluencyScore,
       feedback: `Azure 长音频评估已完成。Fluency 原始分：${formatOptionalScore(result.overall.fluencyScore)}。`,
       strengths: textWorkspaceResult
-        ? ["已基于真实音频生成逐词时间戳", ...textWorkspaceResult.fluencyScore.strengths.slice(0, 1)]
+        ? [
+            "已基于真实音频生成逐词时间戳",
+            ...textWorkspaceResult.fluencyScore.strengths.slice(0, 1),
+          ]
         : ["已基于真实音频生成逐词时间戳", "可结合播放器回听具体停顿和连读"],
       improvements: textWorkspaceResult
-        ? ["优先复盘红色停顿标注", ...textWorkspaceResult.fluencyScore.improvements.slice(0, 1)]
+        ? [
+            "优先复盘红色停顿标注",
+            ...textWorkspaceResult.fluencyScore.improvements.slice(0, 1),
+          ]
         : ["优先复盘红色停顿标注", "对低分词进行跟读和重录"],
     },
     lexicalScore: textWorkspaceResult?.lexicalScore ?? {
       score: 0,
-      feedback: "DeepSeek 文本维度暂不可用；Azure Speech 不直接返回 vocabulary 评分。",
+      feedback:
+        "DeepSeek 文本维度暂不可用；Azure Speech 不直接返回 vocabulary 评分。",
       strengths: ["已保留 transcript，可稍后补跑 DeepSeek 文本评分"],
       improvements: ["配置 DeepSeek Key 后可评估词汇范围、准确性和话题贴合度"],
     },
     grammarScore: textWorkspaceResult?.grammarScore ?? {
       score: 0,
-      feedback: "DeepSeek 文本维度暂不可用；Azure Speech 不直接返回 grammar 或 topic 内容评分。",
+      feedback:
+        "DeepSeek 文本维度暂不可用；Azure Speech 不直接返回 grammar 或 topic 内容评分。",
       strengths: ["已保留 transcript，可稍后补跑 DeepSeek 文本评分"],
-      improvements: ["配置 DeepSeek Key 后可评估语法准确度、句式范围和内容展开"],
+      improvements: [
+        "配置 DeepSeek Key 后可评估语法准确度、句式范围和内容展开",
+      ],
     },
     pronunciationScore: {
       score: pronunciationScore,
@@ -197,10 +241,19 @@ export function mapSpeechAssessmentToWorkspaceResult(
         `Pronunciation 原始分：${formatOptionalScore(result.overall.pronunciationScore)}。`,
         `Accuracy：${formatOptionalScore(result.overall.accuracyScore)}；Fluency：${formatOptionalScore(result.overall.fluencyScore)}；Prosody 韵律/语调自然度：${formatOptionalScore(result.overall.prosodyScore)}。`,
       ].join("\n"),
-      strengths: ["已完成长音频 continuous assessment", "逐词评分、音素提示和时间戳可用于精听复盘"],
+      strengths: [
+        "已完成长音频 continuous assessment",
+        "逐词评分、音素提示和时间戳可用于精听复盘",
+      ],
       improvements: lowAccuracyWords.length
-        ? lowAccuracyWords.map((word) => `${word.word}: ${formatOptionalScore(word.accuracyScore)}`)
-        : ["未发现明显低于 60 分的单词", "继续关注重音、语调、语速和节奏自然度"],
+        ? lowAccuracyWords.map(
+            (word) =>
+              `${word.word}: ${formatOptionalScore(word.accuracyScore)}`,
+          )
+        : [
+            "未发现明显低于 60 分的单词",
+            "继续关注重音、语调、语速和节奏自然度",
+          ],
     },
     keyCorrections: [
       ...(textWorkspaceResult?.keyCorrections ?? []),
@@ -209,7 +262,9 @@ export function mapSpeechAssessmentToWorkspaceResult(
     generalFeedback: textWorkspaceResult
       ? `${textWorkspaceResult.generalFeedback}\n\n${speechFeedback}`
       : "Azure 已基于转码后的 WAV 完成长音频发音评估。请在 transcript 中点击低分词或停顿标记附近回听；DeepSeek 文本维度暂不可用，因此词汇、语法和话题内容未生成结构化批语。",
-    modelAnswer: textWorkspaceResult?.modelAnswer ?? (transcriptText || "Azure 未返回完整 transcript。"),
+    modelAnswer:
+      textWorkspaceResult?.modelAnswer ??
+      (transcriptText || "Azure 未返回完整 transcript。"),
     transcript,
     transcriptTokens,
     speechAssessment: result,
@@ -336,7 +391,9 @@ export function formatRecordDate(date: Date) {
 }
 
 export function formatDuration(totalSeconds: number) {
-  const safeSeconds = Number.isFinite(totalSeconds) ? Math.max(0, Math.floor(totalSeconds)) : 0;
+  const safeSeconds = Number.isFinite(totalSeconds)
+    ? Math.max(0, Math.floor(totalSeconds))
+    : 0;
   const minutes = `${Math.floor(safeSeconds / 60)}`.padStart(2, "0");
   const seconds = `${safeSeconds % 60}`.padStart(2, "0");
   return `${minutes}:${seconds}`;

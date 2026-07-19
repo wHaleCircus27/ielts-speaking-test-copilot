@@ -1,7 +1,8 @@
 export type AppError = {
   code: string;
   message: string;
-  detail?: string;
+  status?: number;
+  requestId?: string;
 };
 
 export function isAppError(value: unknown): value is AppError {

@@ -1,5 +1,16 @@
-import { Database, FileAudio, FileText, HardDrive, History, Plus, Trash2 } from "lucide-react";
-import type { CorrectionRecord, ReferenceTheme } from "../../app/workspaceTypes";
+import {
+  Database,
+  FileAudio,
+  FileText,
+  HardDrive,
+  History,
+  Plus,
+  Trash2,
+} from "lucide-react";
+import type {
+  CorrectionRecord,
+  ReferenceTheme,
+} from "../../app/workspaceTypes";
 
 export function FinderSidebar({
   records,
@@ -26,9 +37,13 @@ export function FinderSidebar({
         <div className="flex items-center justify-between px-2 py-1 opacity-70">
           <div className="flex items-center gap-1.5">
             <History size={14} />
-            <span className="text-xs font-bold uppercase tracking-tight">历史批改记录</span>
+            <span className="text-xs font-bold uppercase tracking-tight">
+              历史批改记录
+            </span>
           </div>
-          <span className="rounded bg-current/10 px-1.5 py-0.5 font-mono text-[10px]">{records.length}</span>
+          <span className="rounded bg-current/10 px-1.5 py-0.5 font-mono text-[10px]">
+            {records.length}
+          </span>
         </div>
 
         <div className="space-y-1">
@@ -41,7 +56,9 @@ export function FinderSidebar({
               <Database size={14} className="mt-0.5 shrink-0 opacity-70" />
               <div className="min-w-0 flex-1 text-left leading-snug">
                 <p className="truncate text-[11px] font-semibold">教师案例库</p>
-                <p className="mt-0.5 text-[10px] opacity-50">SQLite CRUD 基础</p>
+                <p className="mt-0.5 text-[10px] opacity-50">
+                  SQLite CRUD 基础
+                </p>
               </div>
             </div>
           </button>
@@ -65,13 +82,22 @@ export function FinderSidebar({
                 >
                   <div className="flex min-w-0 flex-1 items-start gap-2.5">
                     <div className="mt-0.5 shrink-0 opacity-70">
-                      {isMedia ? <FileAudio size={14} /> : <FileText size={14} />}
+                      {isMedia ? (
+                        <FileAudio size={14} />
+                      ) : (
+                        <FileText size={14} />
+                      )}
                     </div>
                     <div className="min-w-0 flex-1 text-left leading-snug">
-                      <p className="truncate text-[11px] font-semibold" title={record.title}>
+                      <p
+                        className="truncate text-[11px] font-semibold"
+                        title={record.title}
+                      >
                         {record.title}
                       </p>
-                      <p className="mt-0.5 text-[10px] opacity-50">{record.date}</p>
+                      <p className="mt-0.5 text-[10px] opacity-50">
+                        {record.date}
+                      </p>
                     </div>
                   </div>
 
@@ -85,7 +111,10 @@ export function FinderSidebar({
                       onClick={(event) => onDeleteRecord(record.id, event)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
-                          onDeleteRecord(record.id, event as unknown as React.MouseEvent);
+                          onDeleteRecord(
+                            record.id,
+                            event as unknown as React.MouseEvent,
+                          );
                         }
                       }}
                       className="rounded p-0.5 text-red-500 opacity-0 transition-all hover:bg-red-500/10 group-hover:opacity-100"
@@ -102,7 +131,11 @@ export function FinderSidebar({
       </div>
 
       <div className="mt-3 shrink-0 border-t border-current/10 pt-3">
-        <button type="button" onClick={onNewSession} className="new-session-button">
+        <button
+          type="button"
+          onClick={onNewSession}
+          className="new-session-button"
+        >
           <Plus size={14} />
           <span>新口语作业批改</span>
         </button>

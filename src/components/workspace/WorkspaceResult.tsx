@@ -1,4 +1,14 @@
-import { ArrowRight, Bookmark, CheckCircle2, ChevronDown, Clock, CornerDownRight, FileAudio, Pause, Play } from "lucide-react";
+import {
+  ArrowRight,
+  Bookmark,
+  CheckCircle2,
+  ChevronDown,
+  Clock,
+  CornerDownRight,
+  FileAudio,
+  Pause,
+  Play,
+} from "lucide-react";
 import type { PublicAppConfig } from "../../types/config";
 import type {
   RagUsageInfo,
@@ -33,6 +43,7 @@ export function WorkspaceResult({
   displayedTranscript,
   displayedTitle,
   mediaPlayerUrl,
+  mediaPlaybackUnavailable,
   currentTime,
   audioDuration,
   isPlaying,
@@ -52,6 +63,7 @@ export function WorkspaceResult({
   onSetCurrentTime,
   onSetAudioDuration,
   onSetIsPlaying,
+  onMediaPlaybackError,
   onSetResultSelectorDismissed,
   onSetResultSelectorOpen,
 }: {
@@ -63,6 +75,7 @@ export function WorkspaceResult({
   displayedTranscript: TranscriptChunk[];
   displayedTitle: string;
   mediaPlayerUrl: string | null;
+  mediaPlaybackUnavailable: boolean;
   currentTime: number;
   audioDuration: number;
   isPlaying: boolean;
@@ -72,7 +85,9 @@ export function WorkspaceResult({
   resultTabOptions: ResultTabOption[];
   activeResultTabName: string;
   audioPlayerRef: React.RefObject<HTMLAudioElement>;
-  wordTokenElementRefs: React.MutableRefObject<Record<string, HTMLButtonElement | null>>;
+  wordTokenElementRefs: React.MutableRefObject<
+    Record<string, HTMLButtonElement | null>
+  >;
   onOpenResultSelectorAfterDelay: () => void;
   onCloseResultSelector: () => void;
   onChooseResultTab: (nextResultTab: ResultTab) => void;
@@ -82,6 +97,7 @@ export function WorkspaceResult({
   onSetCurrentTime: (currentTime: number) => void;
   onSetAudioDuration: (audioDuration: number) => void;
   onSetIsPlaying: (isPlaying: boolean) => void;
+  onMediaPlaybackError: () => void;
   onSetResultSelectorDismissed: (resultSelectorDismissed: boolean) => void;
   onSetResultSelectorOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }) {
@@ -97,14 +113,19 @@ export function WorkspaceResult({
       </div>
 
       {!displayedResult ? (
-        <div className={`${cardClass} flex min-h-[400px] flex-col items-center justify-center space-y-4 p-8 text-center min-[1180px]:flex-1`}>
+        <div
+          className={`${cardClass} flex min-h-[400px] flex-col items-center justify-center space-y-4 p-8 text-center min-[1180px]:flex-1`}
+        >
           <div className="rounded-full bg-current/5 p-4">
             <FileAudio size={42} className="opacity-50" />
           </div>
           <div className="max-w-md space-y-2">
-            <h4 className="text-sm font-bold tracking-tight">等待上传雅思口语作业</h4>
+            <h4 className="text-sm font-bold tracking-tight">
+              等待上传雅思口语作业
+            </h4>
             <p className="text-xs leading-relaxed opacity-60">
-              左侧菜单会沉淀真实批改档案。导入媒体后会完成标准 WAV 转码和 Azure 长音频发音评估；录入文本后可查看四项评分、词汇修正和高分重构。
+              左侧菜单会沉淀真实批改档案。导入媒体后会完成标准 WAV 转码和 Azure
+              长音频发音评估；录入文本后可查看四项评分、词汇修正和高分重构。
             </p>
             <div className="grid grid-cols-3 gap-2 pt-4">
               <GuideCard title="1. 媒体转码" text="输出 16kHz 单声道 WAV。" />
@@ -116,7 +137,7 @@ export function WorkspaceResult({
             <AudioPlayer
               accentClass={accentClass}
               title="转码 WAV 播放器"
-              description="当前播放的是 FFmpeg 输出的标准 WAV 文件。"
+              description="当前播放的是应用生成的标准 WAV 文件。"
               mediaPlayerUrl={mediaPlayerUrl}
               currentTime={currentTime}
               audioDuration={audioDuration}
@@ -127,6 +148,7 @@ export function WorkspaceResult({
               onSetCurrentTime={onSetCurrentTime}
               onSetAudioDuration={onSetAudioDuration}
               onSetIsPlaying={onSetIsPlaying}
+              onMediaPlaybackError={onMediaPlaybackError}
             />
           ) : null}
         </div>
@@ -136,13 +158,17 @@ export function WorkspaceResult({
             <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
               <div className="flex items-center gap-3">
                 <div className="flex size-12 shrink-0 flex-col items-center justify-center rounded-lg border border-current/10 bg-current/5">
-                  <span className="font-mono text-[9px] font-bold uppercase leading-none opacity-50">Band</span>
+                  <span className="font-mono text-[9px] font-bold uppercase leading-none opacity-50">
+                    Band
+                  </span>
                   <span className="mt-0.5 font-mono text-xl font-bold leading-none tracking-tight">
                     {displayedResult.overallScore.toFixed(1)}
                   </span>
                 </div>
                 <div className="min-w-0">
-                  <h4 className="text-xs font-bold leading-snug">雅思口语专家评分</h4>
+                  <h4 className="text-xs font-bold leading-snug">
+                    雅思口语专家评分
+                  </h4>
                   <p className="mt-0.5 max-w-[280px] truncate text-[10px] leading-normal opacity-60">
                     由 {config.deepseek.model} 大模型精细评估
                   </p>
@@ -178,7 +204,9 @@ export function WorkspaceResult({
 
                 <div
                   className={`result-selector-menu ${resultSelectorOpen ? "result-selector-menu-open" : ""} ${
-                    resultSelectorDismissed ? "result-selector-menu-dismissed" : ""
+                    resultSelectorDismissed
+                      ? "result-selector-menu-dismissed"
+                      : ""
                   }`}
                   role="listbox"
                   aria-label="选择评分维度"
@@ -191,7 +219,9 @@ export function WorkspaceResult({
                       aria-selected={activeTab === tabOption.id}
                       onClick={() => onChooseResultTab(tabOption.id)}
                       className={`result-selector-option ${
-                        activeTab === tabOption.id ? `result-selector-option-active result-selector-option-active-${currentTheme}` : ""
+                        activeTab === tabOption.id
+                          ? `result-selector-option-active result-selector-option-active-${currentTheme}`
+                          : ""
                       }`}
                     >
                       {tabOption.name}
@@ -202,24 +232,38 @@ export function WorkspaceResult({
             </div>
           </div>
 
-          <div className={`${cardClass} p-4 text-xs leading-relaxed min-[1180px]:min-h-0 min-[1180px]:flex-1 min-[1180px]:overflow-y-auto`}>
+          <div
+            className={`${cardClass} p-4 text-xs leading-relaxed min-[1180px]:min-h-0 min-[1180px]:flex-1 min-[1180px]:overflow-y-auto`}
+          >
             {activeTab === "overall" ? (
               <div className="space-y-4">
                 <div>
                   <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider opacity-50">
                     总评与复盘建议
                   </span>
-                  <p className="whitespace-pre-line leading-relaxed">{displayedResult.generalFeedback}</p>
+                  <p className="whitespace-pre-line leading-relaxed">
+                    {displayedResult.generalFeedback}
+                  </p>
                 </div>
 
                 {displayedResult.ragUsage ? (
-                  <RagUsagePanel ragUsage={displayedResult.ragUsage} currentTheme={currentTheme} />
+                  <RagUsagePanel
+                    ragUsage={displayedResult.ragUsage}
+                    currentTheme={currentTheme}
+                  />
                 ) : null}
 
                 {displayedTranscriptTokens.length > 0 ? (
                   <div className="border-t border-current/10 pt-4">
                     <span className="mb-2 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider opacity-50">
-                      <CheckCircle2 size={12} className={currentTheme === "claude" ? "text-[#F27D26]" : "text-emerald-500"} />
+                      <CheckCircle2
+                        size={12}
+                        className={
+                          currentTheme === "claude"
+                            ? "text-[#F27D26]"
+                            : "text-emerald-500"
+                        }
+                      />
                       <span>逐词 transcript 与播放同步 (点击单词跳转)</span>
                     </span>
                     <TranscriptPanel
@@ -231,7 +275,14 @@ export function WorkspaceResult({
                 ) : displayedTranscript.length > 0 ? (
                   <div className="border-t border-current/10 pt-4">
                     <span className="mb-2 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider opacity-50">
-                      <CheckCircle2 size={12} className={currentTheme === "claude" ? "text-[#F27D26]" : "text-emerald-500"} />
+                      <CheckCircle2
+                        size={12}
+                        className={
+                          currentTheme === "claude"
+                            ? "text-[#F27D26]"
+                            : "text-emerald-500"
+                        }
+                      />
                       <span>逐字还原语料及句级时间戳跳转 (点击跳转音频)</span>
                     </span>
                     <div className="max-h-[190px] space-y-2.5 overflow-y-auto rounded-xl border border-current/10 bg-current/[0.02] p-4">
@@ -246,7 +297,9 @@ export function WorkspaceResult({
                             <Clock size={10} className="mr-0.5" />
                             {chunk.timestamp}
                           </span>
-                          <span className="leading-relaxed hover:underline">{chunk.text}</span>
+                          <span className="leading-relaxed hover:underline">
+                            {chunk.text}
+                          </span>
                         </button>
                       ))}
                     </div>
@@ -266,7 +319,10 @@ export function WorkspaceResult({
             ) : null}
 
             {currentScoreData ? (
-              <CriterionPanel activeTab={activeTab} scoreData={currentScoreData} />
+              <CriterionPanel
+                activeTab={activeTab}
+                scoreData={currentScoreData}
+              />
             ) : null}
 
             {activeTab === "corrections" ? (
@@ -290,7 +346,15 @@ export function WorkspaceResult({
                 onSetCurrentTime={onSetCurrentTime}
                 onSetAudioDuration={onSetAudioDuration}
                 onSetIsPlaying={onSetIsPlaying}
+                onMediaPlaybackError={onMediaPlaybackError}
               />
+            </div>
+          ) : null}
+          {mediaPlaybackUnavailable ? (
+            <div
+              className={`${cardClass} shrink-0 border border-amber-500/20 p-3 text-xs font-semibold text-amber-700`}
+            >
+              历史音频不可用。此记录没有可读取的受控 WAV 文件。
             </div>
           ) : null}
         </div>
@@ -313,6 +377,7 @@ function AudioPlayer({
   onSetCurrentTime,
   onSetAudioDuration,
   onSetIsPlaying,
+  onMediaPlaybackError,
 }: {
   accentClass: string;
   title: string;
@@ -327,6 +392,7 @@ function AudioPlayer({
   onSetCurrentTime: (currentTime: number) => void;
   onSetAudioDuration: (audioDuration: number) => void;
   onSetIsPlaying: (isPlaying: boolean) => void;
+  onMediaPlaybackError: () => void;
 }) {
   return (
     <div className="w-full max-w-xl rounded-xl border border-current/10 bg-current/[0.02] p-3 text-left">
@@ -337,10 +403,16 @@ function AudioPlayer({
             onClick={onTogglePlayback}
             className={`shrink-0 rounded-full p-2.5 text-white ${accentClass}`}
           >
-            {isPlaying ? <Pause size={14} /> : <Play size={14} fill="currentColor" />}
+            {isPlaying ? (
+              <Pause size={14} />
+            ) : (
+              <Play size={14} fill="currentColor" />
+            )}
           </button>
           <div className="leading-tight">
-            <p className="max-w-[260px] truncate text-[11px] font-bold">{title}</p>
+            <p className="max-w-[260px] truncate text-[11px] font-bold">
+              {title}
+            </p>
             <p className="text-[10px] opacity-50">{description}</p>
           </div>
         </div>
@@ -354,7 +426,9 @@ function AudioPlayer({
             max={audioDuration || 60}
             step="0.1"
             value={currentTime}
-            onChange={(event) => onChangePlaybackTime(Number(event.target.value))}
+            onChange={(event) =>
+              onChangePlaybackTime(Number(event.target.value))
+            }
             className="w-full accent-current"
           />
           <span className="font-mono text-[10px] tabular-nums opacity-50">
@@ -364,9 +438,14 @@ function AudioPlayer({
         <audio
           ref={audioPlayerRef}
           src={mediaPlayerUrl}
-          onTimeUpdate={() => onSetCurrentTime(audioPlayerRef.current?.currentTime ?? 0)}
-          onLoadedMetadata={() => onSetAudioDuration(audioPlayerRef.current?.duration ?? 0)}
+          onTimeUpdate={() =>
+            onSetCurrentTime(audioPlayerRef.current?.currentTime ?? 0)
+          }
+          onLoadedMetadata={() =>
+            onSetAudioDuration(audioPlayerRef.current?.duration ?? 0)
+          }
           onEnded={() => onSetIsPlaying(false)}
+          onError={onMediaPlaybackError}
         >
           <track kind="captions" />
         </audio>
@@ -384,7 +463,13 @@ function GuideCard({ title, text }: { title: string; text: string }) {
   );
 }
 
-function RagUsagePanel({ ragUsage, currentTheme }: { ragUsage: RagUsageInfo; currentTheme: ReferenceTheme }) {
+function RagUsagePanel({
+  ragUsage,
+  currentTheme,
+}: {
+  ragUsage: RagUsageInfo;
+  currentTheme: ReferenceTheme;
+}) {
   const statusClass =
     ragUsage.status === "matched"
       ? "border-emerald-500/15 bg-emerald-500/5 text-emerald-700"
@@ -396,7 +481,10 @@ function RagUsagePanel({ ragUsage, currentTheme }: { ragUsage: RagUsageInfo; cur
     <div className={`rounded-lg border p-3 ${statusClass}`}>
       <div className="flex items-start justify-between gap-3">
         <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider">
-          <Bookmark size={12} className={currentTheme === "claude" ? "text-[#F27D26]" : undefined} />
+          <Bookmark
+            size={12}
+            className={currentTheme === "claude" ? "text-[#F27D26]" : undefined}
+          />
           <span>教师案例引用</span>
         </span>
         {ragUsage.references.length ? (
@@ -405,18 +493,27 @@ function RagUsagePanel({ ragUsage, currentTheme }: { ragUsage: RagUsageInfo; cur
           </span>
         ) : null}
       </div>
-      <p className="mt-1 text-[11px] leading-relaxed opacity-80">{ragUsage.message}</p>
+      <p className="mt-1 text-[11px] leading-relaxed opacity-80">
+        {ragUsage.message}
+      </p>
       {ragUsage.references.length ? (
         <div className="mt-2 grid gap-2">
           {ragUsage.references.map((reference) => (
-            <div key={reference.caseId} className="rounded-md border border-current/10 bg-white/40 p-2 text-[11px] leading-relaxed">
+            <div
+              key={reference.caseId}
+              className="rounded-md border border-current/10 bg-white/40 p-2 text-[11px] leading-relaxed"
+            >
               <div className="mb-1 flex items-center justify-between gap-2">
-                <span className="truncate font-semibold">{reference.originalText}</span>
+                <span className="truncate font-semibold">
+                  {reference.originalText}
+                </span>
                 <span className="shrink-0 font-mono text-[10px] opacity-70">
                   {formatSimilarity(reference.score)}
                 </span>
               </div>
-              <p className="line-clamp-2 opacity-75">{reference.teacherComment}</p>
+              <p className="line-clamp-2 opacity-75">
+                {reference.teacherComment}
+              </p>
             </div>
           ))}
         </div>
@@ -432,22 +529,36 @@ function formatSimilarity(score: number) {
   return score.toFixed(2);
 }
 
-function CriterionPanel({ activeTab, scoreData }: { activeTab: ResultTab; scoreData: ScoreCriterion }) {
+function CriterionPanel({
+  activeTab,
+  scoreData,
+}: {
+  activeTab: ResultTab;
+  scoreData: ScoreCriterion;
+}) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between border-b border-current/10 pb-2 opacity-80">
         <span className="font-bold">{getSubcategoryName(activeTab)}</span>
-        <span className={`rounded-full px-2.5 py-0.5 font-mono text-xs font-bold ${getScoreBadge(scoreData.score)}`}>
+        <span
+          className={`rounded-full px-2.5 py-0.5 font-mono text-xs font-bold ${getScoreBadge(scoreData.score)}`}
+        >
           分值: {scoreData.score}
         </span>
       </div>
       <div>
-        <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider opacity-50">标准评语</span>
-        <p className="whitespace-pre-line leading-relaxed">{scoreData.feedback}</p>
+        <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider opacity-50">
+          标准评语
+        </span>
+        <p className="whitespace-pre-line leading-relaxed">
+          {scoreData.feedback}
+        </p>
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="rounded-lg border border-emerald-500/10 bg-emerald-500/5 p-3">
-          <span className="mb-1.5 block text-[10px] font-bold uppercase text-emerald-500">突出亮点</span>
+          <span className="mb-1.5 block text-[10px] font-bold uppercase text-emerald-500">
+            突出亮点
+          </span>
           <ul className="list-disc space-y-1 pl-4 text-[11px] text-emerald-700">
             {scoreData.strengths.map((strength) => (
               <li key={strength}>{strength}</li>
@@ -455,7 +566,9 @@ function CriterionPanel({ activeTab, scoreData }: { activeTab: ResultTab; scoreD
           </ul>
         </div>
         <div className="rounded-lg border border-amber-500/10 bg-amber-500/5 p-3">
-          <span className="mb-1.5 block text-[10px] font-bold uppercase text-amber-500">改进方向</span>
+          <span className="mb-1.5 block text-[10px] font-bold uppercase text-amber-500">
+            改进方向
+          </span>
           <ul className="list-disc space-y-1 pl-4 text-[11px] text-amber-700">
             {scoreData.improvements.map((improvement) => (
               <li key={improvement}>{improvement}</li>
@@ -467,7 +580,11 @@ function CriterionPanel({ activeTab, scoreData }: { activeTab: ResultTab; scoreD
   );
 }
 
-function CorrectionsPanel({ corrections }: { corrections: SentenceCorrection[] }) {
+function CorrectionsPanel({
+  corrections,
+}: {
+  corrections: SentenceCorrection[];
+}) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between border-b border-current/10 pb-2 opacity-80">
@@ -477,33 +594,46 @@ function CorrectionsPanel({ corrections }: { corrections: SentenceCorrection[] }
         </span>
       </div>
       {corrections.length === 0 ? (
-        <div className="py-10 text-center opacity-40">AI Examiner 暂未挑出明显词法或语法问题。</div>
+        <div className="py-10 text-center opacity-40">
+          AI Examiner 暂未挑出明显词法或语法问题。
+        </div>
       ) : (
         <div className="space-y-3.5">
           {corrections.map((correction) => (
-            <div key={`${correction.original}-${correction.improved}`} className="space-y-2 rounded-lg border border-current/10 bg-current/[0.02] p-3">
+            <div
+              key={`${correction.original}-${correction.improved}`}
+              className="space-y-2 rounded-lg border border-current/10 bg-current/[0.02] p-3"
+            >
               <div className="flex items-center gap-2">
-                <span className={`rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase ${getCorrectionBadge(correction.category)}`}>
+                <span
+                  className={`rounded border px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase ${getCorrectionBadge(correction.category)}`}
+                >
                   {getCorrectionLabel(correction.category)}
                 </span>
               </div>
               <div className="grid grid-cols-1 items-center gap-3 leading-relaxed md:grid-cols-12">
                 <div className="rounded border border-red-500/10 bg-red-500/5 p-2 text-[11px] text-red-700 md:col-span-5">
-                  <span className="mb-0.5 block font-sans text-[9px] font-bold uppercase opacity-40">您的口语答复 Draft</span>
+                  <span className="mb-0.5 block font-sans text-[9px] font-bold uppercase opacity-40">
+                    您的口语答复 Draft
+                  </span>
                   "{correction.original}"
                 </div>
                 <div className="flex items-center justify-center opacity-40 md:col-span-1">
                   <ArrowRight size={14} className="rotate-90 md:rotate-0" />
                 </div>
                 <div className="rounded border border-emerald-500/10 bg-emerald-500/5 p-2 text-[11px] font-semibold text-emerald-700 md:col-span-6">
-                  <span className="mb-0.5 block font-sans text-[9px] font-bold uppercase opacity-40">考官级高级示范</span>
+                  <span className="mb-0.5 block font-sans text-[9px] font-bold uppercase opacity-40">
+                    考官级高级示范
+                  </span>
                   "{correction.improved}"
                 </div>
               </div>
               <div className="flex items-start gap-1.5 pl-1 pt-0.5 text-[10px] leading-relaxed opacity-80">
                 <CornerDownRight size={12} className="mt-0.5 shrink-0" />
                 <p>
-                  <span className="font-semibold opacity-70">名师答疑/提分点: </span>
+                  <span className="font-semibold opacity-70">
+                    名师答疑/提分点:{" "}
+                  </span>
                   {correction.reason}
                 </p>
               </div>

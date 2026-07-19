@@ -23,7 +23,8 @@ vi.mock("../../lib/corpus", () => ({
 const firstTeacherCase: TeacherCase = {
   id: "case-1",
   originalText: "I like English because it is useful.",
-  revisedText: "I enjoy learning English because it helps me communicate clearly.",
+  revisedText:
+    "I enjoy learning English because it helps me communicate clearly.",
   teacherComment: "表达清楚，但需要更多具体细节。",
   scoringPreference: "更重视自然连接。",
   embeddingStatus: "pending",
@@ -73,7 +74,10 @@ describe("CorpusPage", () => {
       target: { value: " I like English because it is useful. " },
     });
     fireEvent.change(screen.getByLabelText("教师修改后文本"), {
-      target: { value: " I enjoy learning English because it helps me communicate clearly. " },
+      target: {
+        value:
+          " I enjoy learning English because it helps me communicate clearly. ",
+      },
     });
     fireEvent.change(screen.getByLabelText("教师评语"), {
       target: { value: " 表达清楚，但需要更多具体细节。 " },
@@ -84,12 +88,15 @@ describe("CorpusPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "保存案例" }));
 
     await waitFor(() => {
-      expect(screen.getByText("教师案例已保存，Embedding 状态为 pending。")).toBeInTheDocument();
+      expect(
+        screen.getByText("教师案例已保存，Embedding 状态为 pending。"),
+      ).toBeInTheDocument();
     });
 
     expect(createTeacherCase).toHaveBeenCalledWith({
       originalText: "I like English because it is useful.",
-      revisedText: "I enjoy learning English because it helps me communicate clearly.",
+      revisedText:
+        "I enjoy learning English because it helps me communicate clearly.",
       teacherComment: "表达清楚，但需要更多具体细节。",
       scoringPreference: "更重视自然连接。",
     });
@@ -99,13 +106,20 @@ describe("CorpusPage", () => {
   it("edits and deletes one teacher case without batch delete behavior", async () => {
     vi.mocked(listTeacherCases)
       .mockResolvedValueOnce([firstTeacherCase])
-      .mockResolvedValueOnce([{ ...firstTeacherCase, originalText: "I really enjoy English classes." }])
+      .mockResolvedValueOnce([
+        {
+          ...firstTeacherCase,
+          originalText: "I really enjoy English classes.",
+        },
+      ])
       .mockResolvedValueOnce([]);
 
     render(<CorpusPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("I like English because it is useful.")).toBeInTheDocument();
+      expect(
+        screen.getByText("I like English because it is useful."),
+      ).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: "编辑" }));
@@ -115,12 +129,16 @@ describe("CorpusPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "保存修改" }));
 
     await waitFor(() => {
-      expect(screen.getByText("教师案例已更新，Embedding 状态为 pending。")).toBeInTheDocument();
+      expect(
+        screen.getByText("教师案例已更新，Embedding 状态为 pending。"),
+      ).toBeInTheDocument();
     });
 
     expect(updateTeacherCase).toHaveBeenCalledWith(
       "case-1",
-      expect.objectContaining({ originalText: "I really enjoy English classes." }),
+      expect.objectContaining({
+        originalText: "I really enjoy English classes.",
+      }),
     );
 
     fireEvent.click(screen.getByRole("button", { name: "删除" }));
@@ -139,7 +157,9 @@ describe("CorpusPage", () => {
     render(<CorpusPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("I like English because it is useful.")).toBeInTheDocument();
+      expect(
+        screen.getByText("I like English because it is useful."),
+      ).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: "重建 Embedding" }));
@@ -148,7 +168,9 @@ describe("CorpusPage", () => {
       expect(screen.getByText("教师案例库操作失败")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("请先在设置页配置智谱 API Key。")).toBeInTheDocument();
+    expect(
+      screen.getByText("请先在设置页配置智谱 API Key。"),
+    ).toBeInTheDocument();
     expect(rebuildTeacherCaseEmbedding).toHaveBeenCalledWith("case-1");
   });
 
@@ -164,7 +186,9 @@ describe("CorpusPage", () => {
     render(<CorpusPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("智谱 Embedding 服务返回错误状态：429。")).toBeInTheDocument();
+      expect(
+        screen.getByText("智谱 Embedding 服务返回错误状态：429。"),
+      ).toBeInTheDocument();
     });
   });
 
@@ -199,11 +223,15 @@ describe("CorpusPage", () => {
     render(<CorpusPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("I like English because it is useful.")).toBeInTheDocument();
+      expect(
+        screen.getByText("I like English because it is useful."),
+      ).toBeInTheDocument();
     });
 
     fireEvent.change(screen.getByLabelText("教师案例搜索预览"), {
-      target: { value: "Question: travel\nAnswer: I like travelling with friends." },
+      target: {
+        value: "Question: travel\nAnswer: I like travelling with friends.",
+      },
     });
     fireEvent.click(screen.getByRole("button", { name: "检索 Top-K" }));
 
@@ -244,17 +272,23 @@ describe("CorpusPage", () => {
     render(<CorpusPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("I like English because it is useful.")).toBeInTheDocument();
+      expect(
+        screen.getByText("I like English because it is useful."),
+      ).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "重建 pending/failed" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "重建 pending/failed" }),
+    );
 
     await waitFor(() => {
       expect(rebuildTeacherCaseEmbedding).toHaveBeenNthCalledWith(1, "case-1");
       expect(rebuildTeacherCaseEmbedding).toHaveBeenNthCalledWith(2, "case-2");
     });
     await waitFor(() => {
-      expect(screen.getByText("pending/failed 重建队列完成：1/2 条成功，1 条失败。")).toBeInTheDocument();
+      expect(
+        screen.getByText("pending/failed 重建队列完成：1/2 条成功，1 条失败。"),
+      ).toBeInTheDocument();
     });
   });
 });

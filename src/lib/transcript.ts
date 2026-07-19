@@ -1,16 +1,25 @@
-import type { SpeechAssessmentResult, SpeechWordAssessment, TranscriptToken } from "../types/speech";
+import type {
+  SpeechAssessmentResult,
+  SpeechWordAssessment,
+  TranscriptToken,
+} from "../types/speech";
 
 export const severePauseThresholdMs = 2000;
 export const lowAccuracyThreshold = 60;
 
-export function buildTranscriptTokens(words: SpeechWordAssessment[]): TranscriptToken[] {
-  const sortedWords = [...words].sort((leftWord, rightWord) => leftWord.startMs - rightWord.startMs);
+export function buildTranscriptTokens(
+  words: SpeechWordAssessment[],
+): TranscriptToken[] {
+  const sortedWords = [...words].sort(
+    (leftWord, rightWord) => leftWord.startMs - rightWord.startMs,
+  );
   const tokens: TranscriptToken[] = [];
 
   sortedWords.forEach((word, index) => {
     if (index > 0) {
       const previousWord = sortedWords[index - 1];
-      const pauseDurationMs = word.startMs - (previousWord.startMs + previousWord.durationMs);
+      const pauseDurationMs =
+        word.startMs - (previousWord.startMs + previousWord.durationMs);
       if (pauseDurationMs >= severePauseThresholdMs) {
         tokens.push({
           type: "pause",
@@ -29,18 +38,31 @@ export function buildTranscriptTokens(words: SpeechWordAssessment[]): Transcript
       endMs: word.startMs + word.durationMs,
       accuracyScore: word.accuracyScore,
       phonemeErrors: (word.phonemes ?? [])
-        .filter((phoneme) => phoneme.accuracyScore !== undefined && phoneme.accuracyScore < lowAccuracyThreshold)
-        .map((phoneme) => `${phoneme.phoneme}: ${Math.round(phoneme.accuracyScore ?? 0)}`),
+        .filter(
+          (phoneme) =>
+            phoneme.accuracyScore !== undefined &&
+            phoneme.accuracyScore < lowAccuracyThreshold,
+        )
+        .map(
+          (phoneme) =>
+            `${phoneme.phoneme}: ${Math.round(phoneme.accuracyScore ?? 0)}`,
+        ),
     });
   });
 
   return tokens;
 }
 
-export function findCurrentWordToken(tokens: TranscriptToken[], currentTimeSeconds: number) {
+export function findCurrentWordToken(
+  tokens: TranscriptToken[],
+  currentTimeSeconds: number,
+) {
   const currentTimeMs = currentTimeSeconds * 1000;
   return tokens.find(
-    (token) => token.type === "word" && currentTimeMs >= token.startMs && currentTimeMs <= token.endMs,
+    (token) =>
+      token.type === "word" &&
+      currentTimeMs >= token.startMs &&
+      currentTimeMs <= token.endMs,
   );
 }
 
@@ -49,5 +71,8 @@ export function getTranscriptText(result: SpeechAssessmentResult) {
     return result.recognizedText.trim();
   }
 
-  return result.words.map((word) => word.word).join(" ").trim();
+  return result.words
+    .map((word) => word.word)
+    .join(" ")
+    .trim();
 }

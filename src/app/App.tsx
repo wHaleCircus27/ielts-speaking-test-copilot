@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { GraduationCap } from "lucide-react";
 import { useAppConfig } from "../hooks/useAppConfig";
 import { useGradingWorkflow } from "../hooks/useGradingWorkflow";
@@ -13,10 +13,14 @@ import { WindowStatusBar } from "../components/workspace/WindowStatusBar";
 import { Workspace } from "../components/workspace/Workspace";
 
 const CorpusPage = lazy(() =>
-  import("../features/corpus/CorpusPage").then((module) => ({ default: module.CorpusPage })),
+  import("../features/corpus/CorpusPage").then((module) => ({
+    default: module.CorpusPage,
+  })),
 );
 const SettingsPage = lazy(() =>
-  import("../features/settings/SettingsPage").then((module) => ({ default: module.SettingsPage })),
+  import("../features/settings/SettingsPage").then((module) => ({
+    default: module.SettingsPage,
+  })),
 );
 
 function LazyPageFallback({ label }: { label: string }) {
@@ -33,14 +37,17 @@ export function App() {
   const [activeMenu, setActiveMenu] = useState<MenuId | null>(null);
   const [corpusOpen, setCorpusOpen] = useState(false);
   const [pendingMediaPath, setPendingMediaPath] = useState("");
-  const appConfig = useAppConfig({ onThemeMenuSelection: () => setActiveMenu(null) });
+  const [workspaceSessionId, setWorkspaceSessionId] = useState(0);
+  const workspaceGenerationRef = useRef(0);
+  const appConfig = useAppConfig({
+    onThemeMenuSelection: () => setActiveMenu(null),
+  });
   const sessionHistory = useSessionHistory();
 
   const gradingWorkflow = useGradingWorkflow({
     config: appConfig.previewConfig,
     serviceReady: Boolean(appConfig.health),
     onAddRecord: sessionHistory.addRecord,
-    onAfterTextRecordAdded: () => setPendingMediaPath(""),
   });
 
   function openMenu(menuId: MenuId, event: React.MouseEvent) {
@@ -63,14 +70,17 @@ export function App() {
   }
 
   function resetWorkspace() {
+    workspaceGenerationRef.current += 1;
+    gradingWorkflow.cancelPendingGrading();
     sessionHistory.setActiveRecordId(null);
     setPendingMediaPath("");
-    gradingWorkflow.setWorkspaceError(null);
+    setWorkspaceSessionId(workspaceGenerationRef.current);
     setActiveMenu(null);
     setCorpusOpen(false);
   }
 
   async function importMediaFromMenu() {
+    const importGeneration = ++workspaceGenerationRef.current;
     setActiveMenu(null);
     sessionHistory.setActiveRecordId(null);
     setCorpusOpen(false);
@@ -78,18 +88,29 @@ export function App() {
 
     try {
       const selectedPath = await selectMediaFile();
-      if (selectedPath) {
+      if (importGeneration === workspaceGenerationRef.current && selectedPath) {
         setPendingMediaPath(selectedPath);
       }
     } catch (error) {
-      gradingWorkflow.setWorkspaceError(error as AppError);
+      if (importGeneration === workspaceGenerationRef.current) {
+        gradingWorkflow.setWorkspaceError(error as AppError);
+      }
     }
   }
 
-  const visibleError = gradingWorkflow.workspaceError ?? appConfig.startupError;
+  const visibleError =
+    gradingWorkflow.workspaceError ??
+    sessionHistory.historyError ??
+    appConfig.startupError;
+  const migrationDisclosureNoticeVisible =
+    appConfig.config.disclosure.noticeRequired &&
+    appConfig.config.disclosure.acceptedVersion ===
+      appConfig.config.disclosure.latestVersion;
 
   return (
-    <div className={`flex h-screen w-screen flex-col overflow-hidden text-text ${appConfig.themeClass} ${appConfig.typographyClass}`}>
+    <div
+      className={`flex h-screen w-screen flex-col overflow-hidden text-text ${appConfig.themeClass} ${appConfig.typographyClass}`}
+    >
       <MacMenuBar
         activeMenu={activeMenu}
         menuClock={appConfig.menuClock}
@@ -129,13 +150,15 @@ export function App() {
             </div>
             <h1 className="flex min-w-0 items-center gap-1.5 text-xs font-bold tracking-tight opacity-75">
               <GraduationCap size={14} />
-              <span className="truncate">IELTS Speaking Examiner - 雅思口语提分大师</span>
+              <span className="truncate">
+                IELTS Speaking Examiner - 雅思口语提分大师
+              </span>
             </h1>
             <div className="w-14" />
           </div>
 
           <div className="flex min-h-0 flex-1">
-            <aside className="finder-sidebar hidden h-full w-64 shrink-0 flex-col border-r border-border lg:flex">
+            <aside className="finder-sidebar hidden h-full w-64 shrink-0 flex-col border-r border-border min-[960px]:flex">
               <FinderSidebar
                 records={sessionHistory.records}
                 activeRecordId={sessionHistory.activeRecordId}
@@ -161,12 +184,33 @@ export function App() {
                 </div>
               ) : null}
 
+              {migrationDisclosureNoticeVisible ? (
+                <div
+                  role="status"
+                  className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs font-semibold text-amber-800"
+                >
+                  <span>
+                    云服务数据流说明已更新，请查看迁移后的本地存储与云端处理边界。
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSettingsOpen(true)}
+                    className="rounded border border-current/25 px-2.5 py-1 hover:bg-current/10"
+                  >
+                    查看数据说明
+                  </button>
+                </div>
+              ) : null}
+
               {corpusOpen ? (
-                <Suspense fallback={<LazyPageFallback label="正在加载教师案例库..." />}>
+                <Suspense
+                  fallback={<LazyPageFallback label="正在加载教师案例库..." />}
+                >
                   <CorpusPage />
                 </Suspense>
               ) : (
                 <Workspace
+                  key={workspaceSessionId}
                   activeRecord={sessionHistory.activeRecord}
                   config={appConfig.previewConfig}
                   currentTheme={appConfig.referenceTheme}
@@ -206,7 +250,10 @@ export function App() {
       ) : null}
 
       {helpOpen ? (
-        <HelpModal currentTheme={appConfig.referenceTheme} onClose={() => setHelpOpen(false)} />
+        <HelpModal
+          currentTheme={appConfig.referenceTheme}
+          onClose={() => setHelpOpen(false)}
+        />
       ) : null}
     </div>
   );

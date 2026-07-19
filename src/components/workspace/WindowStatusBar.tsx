@@ -12,7 +12,9 @@ export function WindowStatusBar({
   return (
     <footer className="window-statusbar">
       <div className="flex min-w-0 items-center gap-2">
-        <span className={`size-1.5 rounded-full ${serviceReady ? "bg-emerald-500" : "bg-amber-500"}`} />
+        <span
+          className={`size-1.5 rounded-full ${serviceReady ? "bg-emerald-500" : "bg-amber-500"}`}
+        />
         <span className="truncate">{serviceLabel}</span>
       </div>
       <div className="flex shrink-0 items-center gap-4">

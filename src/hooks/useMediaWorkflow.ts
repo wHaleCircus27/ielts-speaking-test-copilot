@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   buildTeacherCaseSearchQuery,
   mapTeacherCaseMatchesToRagExamples,
@@ -6,15 +6,33 @@ import {
   searchTeacherCases,
 } from "../lib/corpus";
 import { gradeSpeaking } from "../lib/grading";
-import { getMediaMetadata, selectMediaFile, transcodeMedia } from "../lib/media";
+import {
+  cancelMediaTranscode,
+  deleteGeneratedMediaFile,
+  getMediaMetadata,
+  selectMediaFile,
+  transcodeMedia,
+} from "../lib/media";
 import { assessPronunciation, validateAzureConfig } from "../lib/speech";
 import { getTranscriptText } from "../lib/transcript";
 import type { PublicAppConfig } from "../types/config";
 import type { AppError } from "../types/errors";
-import type { GradeResult, RagPromptExample, SpeakingPart } from "../types/grading";
-import type { MediaMetadata, MediaTranscodeResult } from "../types/media";
+import type {
+  GradeResult,
+  RagPromptExample,
+  SpeakingPart,
+} from "../types/grading";
+import type {
+  MediaMetadata,
+  MediaProcessingPhase,
+  MediaTranscodeResult,
+} from "../types/media";
 import type { SpeechAssessmentResult } from "../types/speech";
-import type { InputMode, RagUsageInfo, WorkspaceResult } from "../app/workspaceTypes";
+import type {
+  AddCorrectionRecordInput,
+  InputMode,
+  RagUsageInfo,
+} from "../app/workspaceTypes";
 import {
   getFileExtension,
   getFileNameFromPath,
@@ -41,31 +59,65 @@ export function useMediaWorkflow({
   question: string;
   part: SpeakingPart;
   customTitle: string;
-  onAddRecord: (title: string, fileName: string, result: WorkspaceResult) => void;
+  onAddRecord: (input: AddCorrectionRecordInput) => unknown;
   onClearPendingMedia: () => void;
   resetPlaybackState: () => void;
 }) {
   const [inputMode, setInputMode] = useState<InputMode>("media");
   const [mediaPath, setMediaPath] = useState("");
-  const [mediaMetadata, setMediaMetadata] = useState<MediaMetadata | null>(null);
-  const [mediaTranscodeResult, setMediaTranscodeResult] = useState<MediaTranscodeResult | null>(null);
-  const [speechAssessmentResult, setSpeechAssessmentResult] = useState<SpeechAssessmentResult | null>(null);
-  const [mediaBusy, setMediaBusy] = useState(false);
+  const [mediaMetadata, setMediaMetadata] = useState<MediaMetadata | null>(
+    null,
+  );
+  const [mediaTranscodeResult, setMediaTranscodeResult] =
+    useState<MediaTranscodeResult | null>(null);
+  const [speechAssessmentResult, setSpeechAssessmentResult] =
+    useState<SpeechAssessmentResult | null>(null);
+  const [mediaPhase, setMediaPhase] = useState<MediaProcessingPhase>("idle");
   const [mediaPreviewOnly, setMediaPreviewOnly] = useState(false);
   const [mediaNotice, setMediaNotice] = useState<string | null>(null);
   const [mediaError, setMediaError] = useState<AppError | null>(null);
   const [dragging, setDragging] = useState(false);
+  const activeOperationIdRef = useRef(0);
+  const activeTranscodeJobIdRef = useRef<string | null>(null);
+  const speechAbortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (pendingMediaPath) {
       void loadMediaPath(pendingMediaPath);
     }
+    // A new import is triggered only by a new pending path; loadMediaPath guards late async results with operation refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingMediaPath]);
 
-  const canStartMediaCorrection =
-    Boolean(mediaPath.trim()) && Boolean(mediaMetadata?.supported) && !mediaBusy && !mediaPreviewOnly;
+  useEffect(() => {
+    return () => {
+      activeOperationIdRef.current += 1;
+      speechAbortControllerRef.current?.abort();
+      const activeJobId = activeTranscodeJobIdRef.current;
+      if (activeJobId) {
+        void cancelMediaTranscode(activeJobId);
+      }
+    };
+  }, []);
 
-  async function chooseMediaFileFromDialog(browserFileInput: HTMLInputElement | null) {
+  const mediaBusy = mediaPhase !== "idle";
+  const cloudDisclosureAccepted =
+    config.disclosure.acceptedVersion === config.disclosure.latestVersion;
+  const azureWorkflowReady =
+    config.azure.enabled &&
+    config.azure.credentialStatus === "configured" &&
+    cloudDisclosureAccepted;
+  const canStartMediaCorrection =
+    Boolean(mediaPath.trim()) &&
+    Boolean(mediaMetadata?.supported) &&
+    azureWorkflowReady &&
+    !mediaBusy &&
+    !mediaPreviewOnly;
+
+  async function chooseMediaFileFromDialog(
+    browserFileInput: HTMLInputElement | null,
+  ) {
+    await cancelMediaWorkflow(false);
     setInputMode("media");
     setMediaError(null);
     setMediaNotice(null);
@@ -80,11 +132,13 @@ export function useMediaWorkflow({
         await loadMediaPath(selectedPath);
       }
     } catch (error) {
-      setMediaError(error as AppError);
+      setMediaError(normalizeMediaWorkflowError(error));
     }
   }
 
   async function loadMediaPath(nextMediaPath: string) {
+    await cancelMediaWorkflow(false);
+    const operationId = ++activeOperationIdRef.current;
     const normalizedMediaPath = nextMediaPath.trim();
     setInputMode("media");
     setMediaPath(normalizedMediaPath);
@@ -104,10 +158,13 @@ export function useMediaWorkflow({
       return;
     }
 
-    setMediaBusy(true);
+    setMediaPhase("inspecting");
     setMediaError(null);
     try {
       const nextMetadata = await getMediaMetadata(normalizedMediaPath);
+      if (operationId !== activeOperationIdRef.current) {
+        return;
+      }
       setMediaMetadata(nextMetadata);
       if (!nextMetadata.supported) {
         setMediaError({
@@ -116,11 +173,16 @@ export function useMediaWorkflow({
         });
       }
     } catch (error) {
+      if (operationId !== activeOperationIdRef.current) {
+        return;
+      }
       setMediaMetadata(null);
       setMediaNotice(null);
-      setMediaError(error as AppError);
+      setMediaError(normalizeMediaWorkflowError(error));
     } finally {
-      setMediaBusy(false);
+      if (operationId === activeOperationIdRef.current) {
+        setMediaPhase("idle");
+      }
     }
   }
 
@@ -129,58 +191,170 @@ export function useMediaWorkflow({
     if (!normalizedMediaPath || !mediaMetadata?.supported) {
       return;
     }
+    if (!azureWorkflowReady) {
+      setMediaError({
+        code: "AZURE_SERVICE_NOT_READY",
+        message: "请先启用 Azure Speech、配置匹配的凭据并接受云服务数据说明。",
+      });
+      return;
+    }
 
-    setMediaBusy(true);
+    const operationId = ++activeOperationIdRef.current;
+    const transcodeJobId = createMediaJobId();
+    const speechAbortController = new AbortController();
+    activeTranscodeJobIdRef.current = transcodeJobId;
+    speechAbortControllerRef.current = speechAbortController;
+    let generatedOutputPath: string | null = null;
+    let historyPersisted = false;
+
+    setMediaPhase("transcoding");
     setMediaNotice(null);
     setMediaError(null);
     setMediaTranscodeResult(null);
     setSpeechAssessmentResult(null);
     resetPlaybackState();
     try {
-      const nextResult = await transcodeMedia({ inputPath: normalizedMediaPath });
+      const nextResult = await transcodeMedia({
+        jobId: transcodeJobId,
+        inputPath: normalizedMediaPath,
+      });
+      generatedOutputPath = nextResult.outputPath;
+      if (
+        operationId !== activeOperationIdRef.current ||
+        speechAbortController.signal.aborted
+      ) {
+        throw createMediaCancellationError();
+      }
+      activeTranscodeJobIdRef.current = null;
       setMediaTranscodeResult(nextResult);
-      setMediaMetadata(await getMediaMetadata(normalizedMediaPath));
-      setMediaNotice("音视频已转码为标准 WAV，正在提交 Azure 进行长音频发音评估。");
+      const refreshedMetadata = await getMediaMetadata(normalizedMediaPath);
+      if (
+        operationId !== activeOperationIdRef.current ||
+        speechAbortController.signal.aborted
+      ) {
+        throw createMediaCancellationError();
+      }
+      setMediaMetadata(refreshedMetadata);
+      setMediaNotice(
+        "音视频已转码为标准 WAV，正在提交 Azure 进行长音频发音评估。",
+      );
+      setMediaPhase("assessing");
       const azureConfigValidationResult = await validateAzureConfig();
+      if (
+        operationId !== activeOperationIdRef.current ||
+        speechAbortController.signal.aborted
+      ) {
+        throw createMediaCancellationError();
+      }
       if (!azureConfigValidationResult.ok) {
-        setMediaNotice(null);
-        setMediaError({
+        throw {
           code: "AZURE_CONFIG_INVALID",
           message: azureConfigValidationResult.message,
-        });
-        return;
+        } satisfies AppError;
       }
 
-      const nextSpeechAssessmentResult = await assessPronunciation({
-        wavPath: nextResult.outputPath,
-      });
-      const transcriptText = getTranscriptText(nextSpeechAssessmentResult) || nextSpeechAssessmentResult.recognizedText;
+      const nextSpeechAssessmentResult = await assessPronunciation(
+        {
+          wavPath: nextResult.outputPath,
+          durationMs: nextResult.durationMs,
+        },
+        speechAbortController.signal,
+      );
+      if (
+        operationId !== activeOperationIdRef.current ||
+        speechAbortController.signal.aborted
+      ) {
+        throw createMediaCancellationError();
+      }
+      setMediaPhase("grading");
+      const transcriptText =
+        getTranscriptText(nextSpeechAssessmentResult) ||
+        nextSpeechAssessmentResult.recognizedText;
       const transcriptGradingResult = await gradeTranscriptWithDeepSeek({
         transcriptText,
         question,
         part,
       });
+      if (
+        operationId !== activeOperationIdRef.current ||
+        speechAbortController.signal.aborted
+      ) {
+        throw createMediaCancellationError();
+      }
       setSpeechAssessmentResult(nextSpeechAssessmentResult);
       const workspaceResult = mapSpeechAssessmentToWorkspaceResult(
         nextSpeechAssessmentResult,
         transcriptGradingResult?.gradeResult ?? null,
         transcriptGradingResult?.ragUsage,
       );
-      onAddRecord(
-        customTitle.trim() || question.trim() || getFileNameFromPath(normalizedMediaPath).replace(/\.[^/.]+$/, ""),
-        mediaMetadata?.fileName ?? getFileNameFromPath(normalizedMediaPath),
-        workspaceResult,
-      );
+      await onAddRecord({
+        title:
+          customTitle.trim() ||
+          question.trim() ||
+          getFileNameFromPath(normalizedMediaPath).replace(/\.[^/.]+$/, ""),
+        fileName:
+          mediaMetadata?.fileName ?? getFileNameFromPath(normalizedMediaPath),
+        result: workspaceResult,
+        audioPath: nextResult.outputPath,
+      });
+      historyPersisted = true;
       setMediaNotice(
         transcriptGradingResult?.gradeResult
           ? "Azure 长音频发音评估完成，DeepSeek 已基于 transcript 补充词汇、语法和话题内容。"
           : "Azure 长音频发音评估完成；DeepSeek 文本维度暂不可用，已保留 transcript 和发音报告。",
       );
     } catch (error) {
-      setMediaError(error as AppError);
+      if (generatedOutputPath && !historyPersisted) {
+        await deleteGeneratedMediaFile(generatedOutputPath).catch(() => false);
+      }
+      if (operationId !== activeOperationIdRef.current) {
+        return;
+      }
+
+      setMediaTranscodeResult(null);
+      setSpeechAssessmentResult(null);
+      if (
+        isMediaCancellationError(error) ||
+        speechAbortController.signal.aborted
+      ) {
+        setMediaNotice("媒体处理已取消。");
+        setMediaError(null);
+      } else {
+        setMediaNotice(null);
+        setMediaError(normalizeMediaWorkflowError(error));
+      }
     } finally {
-      setMediaBusy(false);
+      if (operationId === activeOperationIdRef.current) {
+        activeTranscodeJobIdRef.current = null;
+        speechAbortControllerRef.current = null;
+        setMediaPhase("idle");
+      }
     }
+  }
+
+  async function cancelMediaWorkflow(showNotice = true) {
+    const activeJobId = activeTranscodeJobIdRef.current;
+    const hasActiveSpeechAssessment = Boolean(speechAbortControllerRef.current);
+    if (!activeJobId && !hasActiveSpeechAssessment) {
+      return;
+    }
+
+    activeOperationIdRef.current += 1;
+    setMediaPhase("canceling");
+    speechAbortControllerRef.current?.abort();
+    activeTranscodeJobIdRef.current = null;
+    speechAbortControllerRef.current = null;
+    if (activeJobId) {
+      await cancelMediaTranscode(activeJobId).catch(() => ({
+        jobId: activeJobId,
+        canceled: false,
+      }));
+    }
+    setMediaTranscodeResult(null);
+    setSpeechAssessmentResult(null);
+    setMediaError(null);
+    setMediaNotice(showNotice ? "媒体处理已取消。" : null);
+    setMediaPhase("idle");
   }
 
   async function gradeTranscriptWithDeepSeek(input: {
@@ -189,12 +363,21 @@ export function useMediaWorkflow({
     part: SpeakingPart;
   }): Promise<{ gradeResult: GradeResult; ragUsage: RagUsageInfo } | null> {
     const normalizedTranscript = input.transcriptText.trim();
-    if (!serviceReady || !config.deepseek.apiKeyConfigured || normalizedTranscript.length < 20) {
+    if (
+      !serviceReady ||
+      !config.deepseek.enabled ||
+      config.deepseek.credentialStatus !== "configured" ||
+      !cloudDisclosureAccepted ||
+      normalizedTranscript.length < 20
+    ) {
       return null;
     }
 
     try {
-      const { ragExamples, ragUsage } = await loadRagContextForTranscript(input.question, normalizedTranscript);
+      const { ragExamples, ragUsage } = await loadRagContextForTranscript(
+        input.question,
+        normalizedTranscript,
+      );
       const gradeResult = await gradeSpeaking({
         text: normalizedTranscript,
         part: input.part,
@@ -211,7 +394,11 @@ export function useMediaWorkflow({
     transcriptQuestion: string,
     transcriptText: string,
   ): Promise<{ ragExamples: RagPromptExample[]; ragUsage: RagUsageInfo }> {
-    if (!config.zhipu.apiKeyConfigured) {
+    if (
+      !config.zhipu.enabled ||
+      config.zhipu.credentialStatus !== "configured" ||
+      !cloudDisclosureAccepted
+    ) {
       return {
         ragExamples: [],
         ragUsage: {
@@ -268,6 +455,7 @@ export function useMediaWorkflow({
   }
 
   function loadBrowserPreviewFile(file: File) {
+    void cancelMediaWorkflow(false);
     const extension = getFileExtension(file.name);
     const supported = isSupportedMediaExtension(extension);
     setInputMode("media");
@@ -282,12 +470,14 @@ export function useMediaWorkflow({
     setMediaTranscodeResult(null);
     setSpeechAssessmentResult(null);
     setMediaPreviewOnly(true);
-    setMediaBusy(false);
+    setMediaPhase("idle");
     resetPlaybackState();
 
     if (supported) {
       setMediaError(null);
-      setMediaNotice("网页预览已读取文件信息；真实 FFmpeg 转码需要在 Tauri 桌面端运行。");
+      setMediaNotice(
+        "网页预览已读取文件信息；真实 afconvert 转码需要在 Tauri 桌面端运行。",
+      );
     } else {
       setMediaNotice(null);
       setMediaError({
@@ -298,6 +488,8 @@ export function useMediaWorkflow({
   }
 
   function clearSelectedMedia() {
+    void cancelMediaWorkflow(false);
+    activeOperationIdRef.current += 1;
     setMediaPath("");
     setMediaMetadata(null);
     setMediaTranscodeResult(null);
@@ -315,6 +507,7 @@ export function useMediaWorkflow({
     mediaMetadata,
     mediaTranscodeResult,
     speechAssessmentResult,
+    mediaPhase,
     mediaBusy,
     mediaPreviewOnly,
     mediaNotice,
@@ -325,8 +518,48 @@ export function useMediaWorkflow({
     setDragging,
     chooseMediaFileFromDialog,
     startMediaAiCorrection,
+    cancelMediaWorkflow,
     handleDroppedFile,
     loadBrowserPreviewFile,
     clearSelectedMedia,
+  };
+}
+
+function createMediaJobId() {
+  return globalThis.crypto.randomUUID();
+}
+
+function createMediaCancellationError(): AppError {
+  return {
+    code: "MEDIA_CANCELED",
+    message: "媒体处理已取消。",
+  };
+}
+
+function isMediaCancellationError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    ((error as { code?: unknown }).code === "MEDIA_CANCELED" ||
+      (error as { code?: unknown }).code === "AZURE_SPEECH_CANCELED")
+  );
+}
+
+function normalizeMediaWorkflowError(error: unknown): AppError {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    "message" in error &&
+    typeof (error as { code?: unknown }).code === "string" &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    return error as AppError;
+  }
+
+  return {
+    code: "MEDIA_WORKFLOW_FAILED",
+    message: "媒体批改未完成，所选文件仍保留，可修复问题后重试。",
   };
 }

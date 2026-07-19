@@ -29,18 +29,30 @@ export function rebuildTeacherCaseEmbedding(id: string) {
 }
 
 export function searchTeacherCases(queryText: string, topK: number) {
-  return invokeCommand<TeacherCaseMatch[]>("search_teacher_cases", { queryText, topK });
-}
-
-export function diagnoseTeacherCaseSearch(queryText: string, topK: number, thresholdOverride?: number) {
-  return invokeCommand<TeacherCaseSearchDiagnostics>("diagnose_teacher_case_search", {
+  return invokeCommand<TeacherCaseMatch[]>("search_teacher_cases", {
     queryText,
     topK,
-    thresholdOverride,
   });
 }
 
-export function mapTeacherCaseMatchesToRagExamples(matches: TeacherCaseMatch[]): RagPromptExample[] {
+export function diagnoseTeacherCaseSearch(
+  queryText: string,
+  topK: number,
+  thresholdOverride?: number,
+) {
+  return invokeCommand<TeacherCaseSearchDiagnostics>(
+    "diagnose_teacher_case_search",
+    {
+      queryText,
+      topK,
+      thresholdOverride,
+    },
+  );
+}
+
+export function mapTeacherCaseMatchesToRagExamples(
+  matches: TeacherCaseMatch[],
+): RagPromptExample[] {
   return matches.slice(0, 3).map((match) => ({
     originalText: match.case.originalText,
     revisedText: match.case.revisedText,
@@ -59,7 +71,9 @@ export function buildTeacherCaseSearchQuery(question: string, answer: string) {
   return normalizedAnswer || normalizedQuestion;
 }
 
-export function mapTeacherCaseMatchesToRagReferences(matches: TeacherCaseMatch[]): RagReference[] {
+export function mapTeacherCaseMatchesToRagReferences(
+  matches: TeacherCaseMatch[],
+): RagReference[] {
   return matches.slice(0, 3).map((match) => ({
     caseId: match.case.id,
     score: match.score,

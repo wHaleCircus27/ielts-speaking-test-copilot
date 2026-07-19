@@ -61,7 +61,13 @@ body {
   min-width: 320px;
   min-height: 100vh;
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
 }
 
 .transcript-word-active {
@@ -70,37 +76,64 @@ body {
 }
 
 .typography-font-system {
-  --app-font-family: Inter, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei",
-    "Noto Sans CJK SC", "Source Han Sans SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif;
+  --app-font-family:
+    Inter, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI",
+    "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", ui-sans-serif,
+    system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-family:
-    Inter, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC",
-    "Source Han Sans SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    Inter,
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei UI",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    "Source Han Sans SC",
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
 }
 
 .typography-font-serif {
-  --app-font-family: Georgia, "Iowan Old Style", "Songti SC", STSong, "Noto Serif CJK SC", "Source Han Serif SC",
-    "SimSun", "Times New Roman", serif;
+  --app-font-family:
+    Georgia, "Iowan Old Style", "Songti SC", STSong, "Noto Serif CJK SC",
+    "Source Han Serif SC", "SimSun", "Times New Roman", serif;
   font-family:
-    Georgia, "Iowan Old Style", "Songti SC", STSong, "Noto Serif CJK SC", "Source Han Serif SC", "SimSun",
-    "Times New Roman", serif;
+    Georgia, "Iowan Old Style", "Songti SC", STSong, "Noto Serif CJK SC",
+    "Source Han Serif SC", "SimSun", "Times New Roman", serif;
 }
 
 .typography-font-space {
-  --app-font-family: "Space Grotesk", "Avenir Next", Inter, "Heiti SC", STHeiti, "PingFang SC",
-    "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", ui-sans-serif, system-ui, -apple-system,
-    BlinkMacSystemFont, sans-serif;
+  --app-font-family:
+    "Space Grotesk", "Avenir Next", Inter, "Heiti SC", STHeiti, "PingFang SC",
+    "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", ui-sans-serif,
+    system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   font-family:
-    "Space Grotesk", "Avenir Next", Inter, "Heiti SC", STHeiti, "PingFang SC", "Microsoft YaHei UI",
-    "Microsoft YaHei", "Noto Sans CJK SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    "Space Grotesk",
+    "Avenir Next",
+    Inter,
+    "Heiti SC",
+    STHeiti,
+    "PingFang SC",
+    "Microsoft YaHei UI",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
 }
 
 .typography-font-mono {
-  --app-font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Kaiti SC", STKaiti, KaiTi,
+  --app-font-family:
+    "JetBrains Mono", "SFMono-Regular", Consolas, "Kaiti SC", STKaiti, KaiTi,
     "Noto Serif CJK SC", "Liberation Mono", Menlo, monospace;
   font-family:
-    "JetBrains Mono", "SFMono-Regular", Consolas, "Kaiti SC", STKaiti, KaiTi, "Noto Serif CJK SC",
-    "Liberation Mono", Menlo, monospace;
+    "JetBrains Mono", "SFMono-Regular", Consolas, "Kaiti SC", STKaiti, KaiTi,
+    "Noto Serif CJK SC", "Liberation Mono", Menlo, monospace;
 }
 
 .typography-font-system,
@@ -117,26 +150,49 @@ body {
 .settings-preview-caption,
 .settings-preview-text-system {
   font-family:
-    Inter, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC",
-    "Source Han Sans SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    Inter,
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei UI",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    "Source Han Sans SC",
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
 }
 
 .settings-preview-text-serif {
   font-family:
-    Georgia, "Iowan Old Style", "Songti SC", STSong, "Noto Serif CJK SC", "Source Han Serif SC", "SimSun",
-    "Times New Roman", serif;
+    Georgia, "Iowan Old Style", "Songti SC", STSong, "Noto Serif CJK SC",
+    "Source Han Serif SC", "SimSun", "Times New Roman", serif;
 }
 
 .settings-preview-text-space {
   font-family:
-    "Space Grotesk", "Avenir Next", Inter, "Heiti SC", STHeiti, "PingFang SC", "Microsoft YaHei UI",
-    "Microsoft YaHei", "Noto Sans CJK SC", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    "Space Grotesk",
+    "Avenir Next",
+    Inter,
+    "Heiti SC",
+    STHeiti,
+    "PingFang SC",
+    "Microsoft YaHei UI",
+    "Microsoft YaHei",
+    "Noto Sans CJK SC",
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
 }
 
 .settings-preview-text-mono {
   font-family:
-    "JetBrains Mono", "SFMono-Regular", Consolas, "Kaiti SC", STKaiti, KaiTi, "Noto Serif CJK SC",
-    "Liberation Mono", Menlo, monospace;
+    "JetBrains Mono", "SFMono-Regular", Consolas, "Kaiti SC", STKaiti, KaiTi,
+    "Noto Serif CJK SC", "Liberation Mono", Menlo, monospace;
 }
 
 .typography-size-small {
@@ -154,9 +210,60 @@ body {
   font-size: 20px;
 }
 
-.typography-size-small :where(.text-\[8px\], .text-\[9px\], .text-\[10px\], .text-\[11px\], .text-\[12px\], .text-\[13px\], .text-\[14px\], .text-\[16px\], .text-xs, .text-sm, .text-base, .text-lg, .text-xl, .text-2xl, .text-3xl),
-.typography-size-medium :where(.text-\[8px\], .text-\[9px\], .text-\[10px\], .text-\[11px\], .text-\[12px\], .text-\[13px\], .text-\[14px\], .text-\[16px\], .text-xs, .text-sm, .text-base, .text-lg, .text-xl, .text-2xl, .text-3xl),
-.typography-size-large :where(.text-\[8px\], .text-\[9px\], .text-\[10px\], .text-\[11px\], .text-\[12px\], .text-\[13px\], .text-\[14px\], .text-\[16px\], .text-xs, .text-sm, .text-base, .text-lg, .text-xl, .text-2xl, .text-3xl) {
+.typography-size-small
+  :where(
+    .text-\[8px\],
+    .text-\[9px\],
+    .text-\[10px\],
+    .text-\[11px\],
+    .text-\[12px\],
+    .text-\[13px\],
+    .text-\[14px\],
+    .text-\[16px\],
+    .text-xs,
+    .text-sm,
+    .text-base,
+    .text-lg,
+    .text-xl,
+    .text-2xl,
+    .text-3xl
+  ),
+.typography-size-medium
+  :where(
+    .text-\[8px\],
+    .text-\[9px\],
+    .text-\[10px\],
+    .text-\[11px\],
+    .text-\[12px\],
+    .text-\[13px\],
+    .text-\[14px\],
+    .text-\[16px\],
+    .text-xs,
+    .text-sm,
+    .text-base,
+    .text-lg,
+    .text-xl,
+    .text-2xl,
+    .text-3xl
+  ),
+.typography-size-large
+  :where(
+    .text-\[8px\],
+    .text-\[9px\],
+    .text-\[10px\],
+    .text-\[11px\],
+    .text-\[12px\],
+    .text-\[13px\],
+    .text-\[14px\],
+    .text-\[16px\],
+    .text-xs,
+    .text-sm,
+    .text-base,
+    .text-lg,
+    .text-xl,
+    .text-2xl,
+    .text-3xl
+  ) {
   font-size: calc(var(--base-font-size) * var(--app-font-scale)) !important;
 }
 
@@ -250,75 +357,78 @@ body {
   --base-font-size: 30px;
 }
 
-.typography-size-small :where(
-  .mac-menu-bar,
-  .menu-item,
-  .new-session-button,
-  .workspace-input,
-  .workspace-textarea,
-  .result-tab,
-  .result-selector-trigger,
-  .result-selector-option,
-  .window-statusbar,
-  .settings-modal-tab,
-  .settings-modal-version,
-  .settings-modal-alert,
-  .settings-modal-alert-warning,
-  .settings-modal-select,
-  .settings-modal-input,
-  .settings-key-status,
-  .settings-clear-button,
-  .settings-size-option,
-  .settings-save-message,
-  .settings-save-error,
-  .settings-apply-button
-),
-.typography-size-medium :where(
-  .mac-menu-bar,
-  .menu-item,
-  .new-session-button,
-  .workspace-input,
-  .workspace-textarea,
-  .result-tab,
-  .result-selector-trigger,
-  .result-selector-option,
-  .window-statusbar,
-  .settings-modal-tab,
-  .settings-modal-version,
-  .settings-modal-alert,
-  .settings-modal-alert-warning,
-  .settings-modal-select,
-  .settings-modal-input,
-  .settings-key-status,
-  .settings-clear-button,
-  .settings-size-option,
-  .settings-save-message,
-  .settings-save-error,
-  .settings-apply-button
-),
-.typography-size-large :where(
-  .mac-menu-bar,
-  .menu-item,
-  .new-session-button,
-  .workspace-input,
-  .workspace-textarea,
-  .result-tab,
-  .result-selector-trigger,
-  .result-selector-option,
-  .window-statusbar,
-  .settings-modal-tab,
-  .settings-modal-version,
-  .settings-modal-alert,
-  .settings-modal-alert-warning,
-  .settings-modal-select,
-  .settings-modal-input,
-  .settings-key-status,
-  .settings-clear-button,
-  .settings-size-option,
-  .settings-save-message,
-  .settings-save-error,
-  .settings-apply-button
-) {
+.typography-size-small
+  :where(
+    .mac-menu-bar,
+    .menu-item,
+    .new-session-button,
+    .workspace-input,
+    .workspace-textarea,
+    .result-tab,
+    .result-selector-trigger,
+    .result-selector-option,
+    .window-statusbar,
+    .settings-modal-tab,
+    .settings-modal-version,
+    .settings-modal-alert,
+    .settings-modal-alert-warning,
+    .settings-modal-select,
+    .settings-modal-input,
+    .settings-key-status,
+    .settings-clear-button,
+    .settings-size-option,
+    .settings-save-message,
+    .settings-save-error,
+    .settings-apply-button
+  ),
+.typography-size-medium
+  :where(
+    .mac-menu-bar,
+    .menu-item,
+    .new-session-button,
+    .workspace-input,
+    .workspace-textarea,
+    .result-tab,
+    .result-selector-trigger,
+    .result-selector-option,
+    .window-statusbar,
+    .settings-modal-tab,
+    .settings-modal-version,
+    .settings-modal-alert,
+    .settings-modal-alert-warning,
+    .settings-modal-select,
+    .settings-modal-input,
+    .settings-key-status,
+    .settings-clear-button,
+    .settings-size-option,
+    .settings-save-message,
+    .settings-save-error,
+    .settings-apply-button
+  ),
+.typography-size-large
+  :where(
+    .mac-menu-bar,
+    .menu-item,
+    .new-session-button,
+    .workspace-input,
+    .workspace-textarea,
+    .result-tab,
+    .result-selector-trigger,
+    .result-selector-option,
+    .window-statusbar,
+    .settings-modal-tab,
+    .settings-modal-version,
+    .settings-modal-alert,
+    .settings-modal-alert-warning,
+    .settings-modal-select,
+    .settings-modal-input,
+    .settings-key-status,
+    .settings-clear-button,
+    .settings-size-option,
+    .settings-save-message,
+    .settings-save-error,
+    .settings-apply-button
+  ) {
   font-size: calc(var(--base-font-size) * var(--app-font-scale)) !important;
 }
 
@@ -436,14 +546,23 @@ button:disabled {
 
 .assessor-theme-animal {
   background:
-    radial-gradient(circle, rgb(198 228 165 / 0.8) 0 1px, transparent 1.5px) 0 0 / 16px 16px,
+    radial-gradient(circle, rgb(198 228 165 / 0.8) 0 1px, transparent 1.5px) 0
+      0 / 16px 16px,
     rgb(230 245 213);
 }
 
 .assessor-theme-glass {
   background:
-    radial-gradient(circle at top right, rgb(118 75 212 / 0.18), transparent 32%),
-    radial-gradient(circle at bottom left, rgb(8 145 178 / 0.15), transparent 30%),
+    radial-gradient(
+      circle at top right,
+      rgb(118 75 212 / 0.18),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at bottom left,
+      rgb(8 145 178 / 0.15),
+      transparent 30%
+    ),
     rgb(6 4 17);
 }
 
@@ -487,7 +606,9 @@ button:disabled {
   border-radius: 6px;
   padding: 0 7px;
   white-space: nowrap;
-  transition: background-color 150ms ease, opacity 150ms ease;
+  transition:
+    background-color 150ms ease,
+    opacity 150ms ease;
 }
 
 .mac-menu-title {
@@ -521,7 +642,9 @@ button:disabled {
   border-color: rgb(255 255 255 / 0.1);
   background: rgb(24 21 46);
   color: white;
-  box-shadow: 0 22px 48px rgb(0 0 0 / 0.46), 0 0 24px rgb(8 145 178 / 0.08);
+  box-shadow:
+    0 22px 48px rgb(0 0 0 / 0.46),
+    0 0 24px rgb(8 145 178 / 0.08);
 }
 
 .theme-animal .menu-panel {
@@ -541,7 +664,9 @@ button:disabled {
   padding: 7px 12px;
   text-align: left;
   font-size: 12px;
-  transition: background-color 150ms ease, color 150ms ease;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
 }
 
 .menu-item:hover {
@@ -578,7 +703,9 @@ button:disabled {
   border-color: rgb(142 126 101);
   border-radius: 24px;
   background: rgb(255 253 244);
-  box-shadow: 0 4px 0 rgb(203 213 225), 0 8px 16px rgb(139 92 26 / 0.08);
+  box-shadow:
+    0 4px 0 rgb(203 213 225),
+    0 8px 16px rgb(139 92 26 / 0.08);
 }
 
 .window-titlebar {
@@ -644,7 +771,10 @@ button:disabled {
   padding: 10px;
   text-align: left;
   color: rgb(var(--color-muted));
-  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease;
 }
 
 .history-row:hover {
@@ -688,7 +818,9 @@ button:disabled {
   font-weight: 700;
   color: white;
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
-  transition: filter 150ms ease, transform 150ms ease;
+  transition:
+    filter 150ms ease,
+    transform 150ms ease;
 }
 
 .new-session-button:hover {
@@ -750,7 +882,9 @@ button:disabled {
   font-size: 12px;
   color: rgb(var(--color-text));
   outline: none;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
 .workspace-input::placeholder {
@@ -774,7 +908,9 @@ button:disabled {
   line-height: 1.7;
   color: rgb(var(--color-text));
   outline: none;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
 .workspace-textarea::placeholder {
@@ -816,7 +952,9 @@ button:disabled {
   padding: 6px 12px;
   font-weight: 600;
   color: rgb(var(--color-muted));
-  transition: background-color 150ms ease, color 150ms ease;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
 }
 
 .result-tab:hover {
@@ -870,7 +1008,9 @@ button:disabled {
   font-size: 12px;
   font-weight: 700;
   line-height: 1;
-  transition: filter 150ms ease, transform 150ms ease;
+  transition:
+    filter 150ms ease,
+    transform 150ms ease;
 }
 
 .result-selector-trigger:hover {
@@ -952,7 +1092,9 @@ button:disabled {
   font-size: 12px;
   font-weight: 700;
   color: rgb(var(--color-muted));
-  transition: background 140ms ease, color 140ms ease;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
 }
 
 .result-selector-option:hover {
@@ -1050,7 +1192,9 @@ button:disabled {
   border-color: rgb(142 126 101);
   border-radius: 24px;
   background: rgb(252 249 237);
-  box-shadow: 0 4px 0 rgb(203 213 225), 0 8px 16px rgb(139 92 26 / 0.08);
+  box-shadow:
+    0 4px 0 rgb(203 213 225),
+    0 8px 16px rgb(139 92 26 / 0.08);
 }
 
 .settings-modal-window {
@@ -1099,7 +1243,9 @@ button:disabled {
   border-radius: 28px;
   background: rgb(252 249 237);
   color: rgb(74 59 50);
-  box-shadow: 0 5px 0 rgb(203 213 225), 0 26px 70px rgb(139 92 26 / 0.22);
+  box-shadow:
+    0 5px 0 rgb(203 213 225),
+    0 26px 70px rgb(139 92 26 / 0.22);
 }
 
 .settings-modal-window-liquid-glass {
@@ -1116,8 +1262,14 @@ button:disabled {
 .settings-modal-window-control {
   position: absolute;
   z-index: 10;
-  left: calc(var(--settings-window-radius) - (var(--settings-close-size) / 2) - var(--settings-window-border-width));
-  top: calc(var(--settings-window-radius) - (var(--settings-close-size) / 2) - var(--settings-window-border-width));
+  left: calc(
+    var(--settings-window-radius) - (var(--settings-close-size) / 2) -
+      var(--settings-window-border-width)
+  );
+  top: calc(
+    var(--settings-window-radius) - (var(--settings-close-size) / 2) -
+      var(--settings-window-border-width)
+  );
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1161,7 +1313,10 @@ button:disabled {
   font-size: 12px;
   font-weight: 800;
   line-height: 1;
-  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
 }
 
 .settings-modal-tab:hover {
@@ -1209,7 +1364,9 @@ button:disabled {
 
 .settings-modal-version {
   text-align: center;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
   font-size: 14px;
   opacity: 0.38;
 }
@@ -1305,15 +1462,21 @@ button:disabled {
 }
 
 .settings-theme-card-pulse-claude {
-  box-shadow: 0 0 0 6px rgb(242 125 38 / 0.12), 0 16px 36px rgb(242 125 38 / 0.16);
+  box-shadow:
+    0 0 0 6px rgb(242 125 38 / 0.12),
+    0 16px 36px rgb(242 125 38 / 0.16);
 }
 
 .settings-theme-card-pulse-animal-crossing {
-  box-shadow: 0 0 0 6px rgb(87 196 145 / 0.18), 0 16px 36px rgb(87 196 145 / 0.2);
+  box-shadow:
+    0 0 0 6px rgb(87 196 145 / 0.18),
+    0 16px 36px rgb(87 196 145 / 0.2);
 }
 
 .settings-theme-card-pulse-liquid-glass {
-  box-shadow: 0 0 0 6px rgb(34 211 238 / 0.16), 0 18px 42px rgb(124 58 237 / 0.24);
+  box-shadow:
+    0 0 0 6px rgb(34 211 238 / 0.16),
+    0 18px 42px rgb(124 58 237 / 0.24);
 }
 
 @keyframes settings-theme-card-pop {
@@ -1345,7 +1508,11 @@ button:disabled {
 @keyframes settings-preview-wash {
   0% {
     opacity: 0;
-    background: radial-gradient(circle at 50% 42%, rgb(255 255 255 / 0.34), transparent 18%);
+    background: radial-gradient(
+      circle at 50% 42%,
+      rgb(255 255 255 / 0.34),
+      transparent 18%
+    );
   }
 
   38% {
@@ -1354,7 +1521,11 @@ button:disabled {
 
   100% {
     opacity: 0;
-    background: radial-gradient(circle at 50% 42%, rgb(255 255 255 / 0.08), transparent 58%);
+    background: radial-gradient(
+      circle at 50% 42%,
+      rgb(255 255 255 / 0.08),
+      transparent 58%
+    );
   }
 }
 
@@ -1400,7 +1571,10 @@ button:disabled {
   padding: 12px 14px;
   font-size: 12px;
   outline: none;
-  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background 140ms ease;
 }
 
 .settings-modal-select-claude,
@@ -1454,7 +1628,10 @@ button:disabled {
   font-size: 12px;
   font-weight: 700;
   opacity: 0.74;
-  transition: background 140ms ease, border-color 140ms ease, opacity 140ms ease;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    opacity 140ms ease;
 }
 
 .settings-size-option:hover,
@@ -1510,7 +1687,9 @@ button:disabled {
   color: rgb(185 28 28);
   font-size: 12px;
   font-weight: 700;
-  transition: background 140ms ease, color 140ms ease;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
 }
 
 .settings-clear-button:hover {
@@ -1548,7 +1727,10 @@ button:disabled {
   color: rgb(255 255 255);
   font-size: 12px;
   font-weight: 800;
-  transition: filter 140ms ease, opacity 140ms ease, transform 140ms ease;
+  transition:
+    filter 140ms ease,
+    opacity 140ms ease,
+    transform 140ms ease;
 }
 
 .settings-apply-button:hover {
@@ -1658,7 +1840,11 @@ button:disabled {
 
 .theme-glass body {
   background:
-    radial-gradient(circle at 30% -20%, rgb(40 121 255 / 0.22), transparent 32%),
+    radial-gradient(
+      circle at 30% -20%,
+      rgb(40 121 255 / 0.22),
+      transparent 32%
+    ),
     linear-gradient(180deg, rgb(11 11 13), rgb(0 0 0));
 }
 
@@ -1671,7 +1857,9 @@ button:disabled {
 .theme-glass .glass-panel {
   border: 1px solid rgb(255 255 255 / 0.1);
   background: rgb(255 255 255 / 0.055);
-  box-shadow: 0 22px 70px rgb(0 0 0 / 0.45), inset 0 1px 0 rgb(255 255 255 / 0.05);
+  box-shadow:
+    0 22px 70px rgb(0 0 0 / 0.45),
+    inset 0 1px 0 rgb(255 255 255 / 0.05);
   backdrop-filter: blur(12px);
 }
 
@@ -1682,7 +1870,9 @@ button:disabled {
 }
 
 .theme-glass .glass-blue-glow {
-  box-shadow: 0 0 0 1px rgb(var(--color-primary) / 0.55), 0 18px 40px rgb(var(--color-primary) / 0.12);
+  box-shadow:
+    0 0 0 1px rgb(var(--color-primary) / 0.55),
+    0 18px 40px rgb(var(--color-primary) / 0.12);
 }
 
 .theme-glass .glass-scrollbar {
@@ -1705,7 +1895,8 @@ button:disabled {
 
 .theme-animal #root > div {
   background:
-    radial-gradient(circle, rgb(137 190 109 / 0.22) 0 3px, transparent 3.5px) 0 0 / 28px 28px,
+    radial-gradient(circle, rgb(137 190 109 / 0.22) 0 3px, transparent 3.5px) 0
+      0 / 28px 28px,
     rgb(var(--color-bg));
 }
 
