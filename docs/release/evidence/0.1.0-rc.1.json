@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "releaseVersion": "0.1.0-rc.1",
-  "commit": "122b89f3197499a38379dd6f57072762246a3d00",
+  "commit": "a58569399bbf88b1bb8c08f65c3b53034170aae1",
   "environment": {
     "osVersion": "macOS 26.5.2",
     "architecture": "arm64"

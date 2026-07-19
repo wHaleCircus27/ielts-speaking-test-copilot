@@ -4,16 +4,16 @@ Unchecked items are release blockers. This checklist must be completed with evid
 
 ## Repository Gates
 
-- [ ] `pnpm verify` passes from a fresh clone with the frozen lockfile.
-- [ ] `dependency-audit` passes with no high/critical finding and only active, unexpired exceptions.
-- [ ] `secret-scan` passes against complete Git history with redaction enabled.
+- [x] `pnpm verify` passes from a fresh clone with the frozen lockfile.
+- [x] `dependency-audit` passes with no high/critical finding and only active, unexpired exceptions.
+- [x] `secret-scan` passes against complete Git history with redaction enabled.
 - [ ] GitHub `main` requires `verify`, `dependency-audit`, and `secret-scan`.
 
 ## Bundle
 
-- [ ] `.app` executable is arm64 and minimum macOS version is 15.0.
-- [ ] Version and bundle identifier match release manifests.
-- [ ] Ad-hoc signature passes `codesign --verify --deep --strict`.
+- [x] `.app` executable is arm64 and minimum macOS version is 15.0.
+- [x] Version and bundle identifier match release manifests.
+- [x] Ad-hoc signature passes `codesign --verify --deep --strict`.
 - [ ] LICENSE, NOTICE, THIRD_PARTY_NOTICES, and application icons are present in the bundle.
 - [ ] Bundle ZIP SHA-256 is recorded in sanitized evidence.
 
@@ -39,11 +39,11 @@ Unchecked items are release blockers. This checklist must be completed with evid
 
 ## Real Services
 
-- [ ] DeepSeek synthetic text grading passes and failed retry preserves the draft.
+- [x] DeepSeek synthetic text grading passes and failed retry preserves the draft.
 - [ ] Azure assessment of locally generated synthetic speech longer than 35 seconds passes.
 - [ ] Azure first/middle/last word seeking is within 0.5 seconds and playback highlighting is correct.
-- [ ] Zhipu `embedding-3` returns 1024 dimensions and threshold/cache checks pass.
-- [ ] Evidence contains only whitelisted summaries and passes `pnpm evidence:verify`.
+- [x] Zhipu `embedding-3` returns 1024 dimensions and threshold/cache checks pass.
+- [x] Evidence contains only whitelisted summaries and passes `pnpm evidence:verify`.
 
 ## Recovery and Decision
 
