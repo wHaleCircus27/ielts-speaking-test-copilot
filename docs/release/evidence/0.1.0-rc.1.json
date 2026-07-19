@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "releaseVersion": "0.1.0-rc.1",
-  "commit": "pending",
+  "commit": "d1fa8fc4bb97773937e1f48cb98b33bb9f20bfb0",
   "environment": {
     "osVersion": "macOS 26.5.2",
     "architecture": "arm64"
@@ -15,15 +15,15 @@
   },
   "repositoryGates": {
     "freshCloneVerify": "pending",
-    "dependencyAudit": "pending",
-    "fullHistoryScan": "pending",
-    "branchProtection": "pending"
+    "dependencyAudit": "passed",
+    "fullHistoryScan": "passed",
+    "branchProtection": "blocked"
   },
   "bundle": {
-    "build": "pending",
-    "architecture": "pending",
-    "signature": "pending",
-    "resources": "pending"
+    "build": "passed",
+    "architecture": "passed",
+    "signature": "passed",
+    "resources": "failed"
   },
   "services": {
     "deepseek": {
@@ -61,8 +61,14 @@
     "width960": "pending",
     "width1200": "pending"
   },
+  "responsivePreview": {
+    "width960": "passed",
+    "width1200": "passed",
+    "horizontalOverflow": false,
+    "consoleIssueCount": 0
+  },
   "rollback": { "status": "pending" },
-  "rhTasks": { "status": "pending", "completed": 0, "total": 21 },
+  "rhTasks": { "status": "pending", "completed": 12, "total": 21 },
   "decisionReview": { "status": "pending" },
   "decision": "No-Go"
 }
