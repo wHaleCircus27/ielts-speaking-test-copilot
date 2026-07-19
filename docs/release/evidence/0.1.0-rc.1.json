@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "releaseVersion": "0.1.0-rc.1",
-  "commit": "d1fa8fc4bb97773937e1f48cb98b33bb9f20bfb0",
+  "commit": "122b89f3197499a38379dd6f57072762246a3d00",
   "environment": {
     "osVersion": "macOS 26.5.2",
     "architecture": "arm64"
@@ -14,7 +14,7 @@
     "durationMs": 1000
   },
   "repositoryGates": {
-    "freshCloneVerify": "pending",
+    "freshCloneVerify": "passed",
     "dependencyAudit": "passed",
     "fullHistoryScan": "passed",
     "branchProtection": "blocked"
@@ -68,7 +68,7 @@
     "consoleIssueCount": 0
   },
   "rollback": { "status": "pending" },
-  "rhTasks": { "status": "pending", "completed": 12, "total": 21 },
+  "rhTasks": { "status": "pending", "completed": 13, "total": 21 },
   "decisionReview": { "status": "pending" },
   "decision": "No-Go"
 }
